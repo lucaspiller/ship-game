@@ -829,12 +829,10 @@
       this.position = Vector._new(0, 0);
       this.width = canvas.width;
       this.height = canvas.height;
-      console.log(canvas);
-      canvas.addEventListener("resize", function() {
-        console.log('resize');
+      setInterval(function() {
         _this.width = canvas.width;
         return _this.height = canvas.height;
-      });
+      }, 250);
     }
 
     Viewpoint.prototype.update = function(ship) {

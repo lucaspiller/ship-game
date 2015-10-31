@@ -588,7 +588,7 @@ class Viewpoint
     @width  = canvas.width
     @height = canvas.height
 
-    setTimeout =>
+    setInterval =>
       @width  = canvas.width
       @height = canvas.height
     , 250
