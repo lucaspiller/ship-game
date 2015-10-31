@@ -1,0 +1,194 @@
+;;; Hardware detection ;;;
+
+hwn i ; read number of devices in i
+set j, 0
+
+:hardware_detection_loop
+hwq j ; query device j
+
+; monitor
+ife a, 0xf615
+set pc, monitor_detected
+
+:hardware_detection_loop_continue
+
+; increment counter
+add j, 1
+ife j, i
+set pc, initialize_display
+
+; finished
+set pc, hardware_detection_loop
+
+:monitor_detected
+set [display_address], j
+set pc, hardware_detection_loop_continue
+
+:display_address
+dat 0xffff
+
+;;; Initialisation ;;;
+
+:initialize_display
+
+; map display to memory 0x8000 - 0x8180
+set a, 0
+set b, 0x8000
+hwi [display_address]
+set pc, main_loop
+
+;;; Subroutine: Render Menu ;;;
+;;; A - Pointer a menu
+;;; B - Selected menu item (first item = 1)
+:render_menu
+set push, c
+set push, x
+set push, y
+set push, z
+set push, i
+set push, j
+
+; read number of menu items into z
+set z, [a]
+
+; set i to the current item
+set i, a
+add i, 1
+
+; clear screen
+set a, 0x0000
+jsr clear_screen
+
+; set j to the current item index
+set j, 0
+
+; set y to the selected menu item (first item = 1)
+set y, b
+
+:render_menu_item
+
+ife z, 0
+set pc, render_menu_end
+
+; set a to memory location of first character
+; 0x8000 + (32 * j) + 5
+set a, 0x8000
+set b, 32
+set x, j
+add x, 3
+mul b, x
+add a, b
+add a, 5
+
+; set b to the string location
+set b, i
+
+; check if is active menu item and set colour
+add j, 1
+set c, 0xe000
+ife j, y
+set c, 0x0e00
+
+; render the stirng
+jsr render_string
+
+; set i to the next item
+set i, b
+add i, 1
+
+; increment the menu item
+sub z, 1
+set pc, render_menu_item
+
+:render_menu_end
+
+set j, pop
+set i, pop
+set z, pop
+set y, pop
+set x, pop
+set c, pop
+set pc, pop
+
+;;; Subroutine: Render string ;;;
+;;; A - Screen memory location
+;;; B - String memory location (terminated by 0x0000)
+;;; C - Colour, e.g. 0x7a00
+:render_string
+
+:render_string_loop
+
+; terminator
+ife [b], 0x0000
+set pc, render_string_end
+
+; set colour
+set [a], c
+
+; set the character
+xor [a], [b]
+
+; increment
+add a, 1
+add b, 1
+set pc, render_string_loop
+
+:render_string_end
+set pc, pop
+
+;;; Subroutine: Clear screen ;;;
+;;; A - Screen colour, e.g. 0x0a00 for yellow
+:clear_screen
+set push, i
+
+set i, 0x8000
+
+:clear_screen_loop
+ife i, 0x8180
+set pc, clear_screen_end
+
+; set screen to our target colour
+set [i], a
+
+; set the character
+xor [i], 0x0020
+
+add i, 1
+set pc, clear_screen_loop
+
+:clear_screen_end
+set i, pop
+set pc, pop
+
+
+
+:main_loop
+set y, 0
+
+:main_menu_loop
+
+; load main menu
+set a, main_menu
+set b, y
+jsr render_menu
+
+; wait a while
+set a, 0
+set b, 0
+
+:waity_waity
+add a, 1
+ifn 0xffff, a
+set pc, waity_waity
+
+add y, 1
+ife y, 4
+set y, 0
+set pc, main_menu_loop
+
+
+:main_menu
+DAT 3 ; size
+DAT " Information ", 0x0000
+DAT " Messages ", 0x0000
+DAT " Jobs ", 0x0000
