@@ -14,7 +14,23 @@ html {
   font-family: monoOne, monospace;
 }
 
+#left-column {
+  padding: 5px;
+  float: left;
+  width: 690px;
+}
+
+#right-column {
+  margin-left: 700px;
+}
+
 canvas.etag {
   background-color: rgba(0, 0, 0, 0.5);
-  margin-left: 700px;
+}
+
+.box {
+  background-color: $colour-two;
+  padding: 10px;
+  margin-bottom: 10px;
+  opacity: 0.7;
 }
