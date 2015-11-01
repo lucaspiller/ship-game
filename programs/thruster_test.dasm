@@ -1,0 +1,182 @@
+;;; Hardware detection ;;;
+
+  HWN I ; read number of devices in i
+  SET J, 0
+
+:hardware_detection_loop
+  HWQ J ; query device j
+
+  ; thrusters
+  IFE A, 0x8697
+  SET PC, thrusters_detected
+
+:hardware_detection_loop_continue
+  ; increment counter
+  ADD J, 1
+  IFE J, I
+  SET PC, initialize
+
+  ; finished
+  SET PC, hardware_detection_loop
+
+:thrusters_detected
+  SET [thrusters_address], J
+  SET PC, hardware_detection_loop_continue
+
+:thrusters_address
+  DAT 0xffff
+
+;;; Thruster control ;;;
+
+;;; Subroutine forward
+:forward
+  ; read state into B
+  SET A, 0
+  HWI [thrusters_address]
+
+  ; set the high nibble to 0xf0
+  AND B, 0x00ff ; clear high nibble
+  SET A, 0xf000
+  BOR B, A      ; set 0xf0 in high nibble
+
+  ; set state
+  SET A, 1
+  HWI [thrusters_address]
+  SET PC, POP
+
+;;; Subroutine backward
+:backward
+  ; read state into B
+  SET A, 0
+  HWI [thrusters_address]
+
+  ; set the high nibble to 0x0f
+  AND B, 0x00ff ; clear high nibble
+  SET A, 0x0f00
+  BOR B, A      ; set 0x0f in high nibble
+
+  ; set state
+  SET A, 1
+  HWI [thrusters_address]
+  SET PC, POP
+
+;;; Subroutine backward_stop
+:forward_backward_stop
+  ; read state into B
+  SET A, 0
+  HWI [thrusters_address]
+
+  ; set the high nibble to 0x00
+  AND B, 0x00ff ; clear high nibble
+
+  ; set state
+  SET A, 1
+  HWI [thrusters_address]
+  SET PC, POP
+
+;;; Subroutine left
+:left
+  ; read state into B
+  SET A, 0
+  HWI [thrusters_address]
+
+  ; set the low nibble to 0xf0
+  AND B, 0xff00 ; clear low nibble
+  SET A, 0x00f0
+  BOR B, A      ; set 0xf0 in low nibble
+
+  ; set state
+  SET A, 1
+  HWI [thrusters_address]
+  SET PC, POP
+
+;;; Subroutine right
+:right
+  ; read state into B
+  SET A, 0
+  HWI [thrusters_address]
+
+  ; set the low nibble to 0x0f
+  AND B, 0xff00 ; clear low nibble
+  SET A, 0x000f
+  BOR B, A      ; set 0x0f in low nibble
+
+  ; set state
+  SET A, 1
+  HWI [thrusters_address]
+  SET PC, POP
+
+;;; Subroutine right_stop
+:left_right_stop
+  ; read state into B
+  SET A, 0
+  HWI [thrusters_address]
+
+  ; set the low nibble to 0x00
+  AND B, 0xff00 ; clear low nibble
+
+  ; set state
+  SET A, 1
+  HWI [thrusters_address]
+  SET PC, POP
+
+;;; Main Loop ;;;
+
+:initialize
+  SET I, 0x8000
+  SET X, 0
+  SET Y, 0
+
+:main_loop
+  IFE I, 0xffff
+  JSR switch_forward_backward
+
+  IFG J, 0xfff0
+  JSR switch_left_right
+
+  IFG J, 0xfff0
+  SET J, 0
+
+  ADD I, 1
+  ADD J, 10
+  SET PC, main_loop
+
+:switch_forward_backward
+  IFE X, 0
+  JSR forward
+
+  IFE X, 1
+  JSR forward_backward_stop
+
+  IFE X, 2
+  JSR backward
+
+  IFE X, 3
+  JSR forward_backward_stop
+
+  ADD X, 1
+
+  IFE X, 4
+  SET X, 0
+
+  SET PC, POP
+
+:switch_left_right
+  IFE Y, 0
+  JSR left
+
+  IFE Y, 1
+  JSR left_right_stop
+
+  IFE Y, 3
+  JSR right
+
+  IFE Y, 4
+  JSR left_right_stop
+
+  ADD Y, 1
+
+  IFE Y, 6
+  SET Y, 0
+
+  SET PC, POP

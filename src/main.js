@@ -14,6 +14,7 @@ export default class Main {
       this.emulator.devices.push(thrusters)
 
       new BytecodeLoader(this.buildLoader(), bytecode => {
+        this.emulator.reboot()
         this.emulator.run(bytecode)
         this.emulator.runAsync()
       })
