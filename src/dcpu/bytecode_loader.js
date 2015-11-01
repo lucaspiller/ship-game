@@ -15,7 +15,6 @@ export default class BytecodeLoader {
     try {
       let bytecode = JSON.parse(localStorage.getItem("bytecode"))
       if (bytecode) {
-        console.log(bytecode)
         this.callback(bytecode)
       } else {
         this.loadDemo()

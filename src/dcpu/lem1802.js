@@ -46,29 +46,27 @@ export default class Monitor {
     this.canvas.width  = 128
     this.canvas.height = 96
     this.context       = canvas.getContext('2d');
+    this.imageData     = this.context.createImageData(
+      this.canvas.width,
+      this.canvas.height
+    )
 
     this.id           = 0x7349f615
     this.version      = 0x1802
     this.manufacturer = 0x1c6c8b36
     this.connected    = false
 
-    requestAnimationFrame(this.render.bind(this))
+    setTimeout(this.render.bind(this), 1000 / 30)
   }
 
   init() {
     this.connected = false
-
-    this.memOffset  = 0x8000
-    this.fontOffset = 0x8180
-
-    this.font    = DEFAULT_FONT
-    this.palette = DEFAULT_PALETTE
   }
 
   interrupt() {
     let code  = this.emulator.Registers.A.get()
     let value = this.emulator.Registers.B.get()
-    console.log('interrupt', code, value)
+
     switch(code) {
       case 0:
         if(value === 0) {
@@ -77,6 +75,8 @@ export default class Monitor {
           this.memMapScreen(value)
         }
         break
+      default:
+        console.warn("Unimplemented interrupt:", code, value)
     }
   }
 
@@ -94,10 +94,6 @@ export default class Monitor {
   }
 
   drawGlyph(x, y, glyph, fg, bg, blink) {
-    // set the background colour
-    this.context.fillStyle = this.readColour32(bg)
-    this.context.fillRect(x * 4, y * 8, 4, 8)
-
     // load font data
     let cols = [];
     glyph *= 2;
@@ -106,13 +102,27 @@ export default class Monitor {
     cols[2] = this.readFont(glyph + 1) >> 8
     cols[3] = this.readFont(glyph + 1) & 0xff
 
-    // draw glyph
-    this.context.fillStyle = this.readColour32(fg)
+    // load colour data
+    let bgSplit = this.readColours(bg)
+    let [bgR, bgG, bgB] = bgSplit
+    let fgSplit = this.readColours(fg)
+    let [fgR, fgG, fgB] = fgSplit
+
+    // draw glyph to buffer
     for(let row = 0; row < 8; row++) {
       for(let col = 0; col < 4; col++) {
         let bit = (cols[col] >> row) & 0x01
+        let index = ((x*4 + col) + (y*8 + row) * this.canvas.width) * 4
         if(bit == 1) {
-          this.context.fillRect(x*4 + col, y*8 + row, 1, 1)
+          this.imageData.data[index+0] = fgR
+          this.imageData.data[index+1] = fgG
+          this.imageData.data[index+2] = fgB
+          this.imageData.data[index+3] = 255
+        } else {
+          this.imageData.data[index+0] = bgR
+          this.imageData.data[index+1] = bgG
+          this.imageData.data[index+2] = bgB
+          this.imageData.data[index+3] = 255
         }
       }
     }
@@ -123,7 +133,7 @@ export default class Monitor {
     return DEFAULT_FONT[offset]
   }
 
-  readColour32(index) {
+  readColours(index) {
     // TODO read palette when memory mapped
     let colour = DEFAULT_PALETTE[index]
 
@@ -131,18 +141,29 @@ export default class Monitor {
     let g = ((colour & 0x0f0) >> 4) * 16
     let b = (colour & 0x00f) * 16
 
-    return `rgb(${r},${g},${b})`
+    return [r, g, b]
+  }
+
+  renderToBuffer() {
+    // draw glyphs to buffer
+    for(let y = 0; y < 12; y++) {
+      for(let x = 0; x < 32; x++) {
+        let word = this.emulator.RAM[this.memOffset + x + y * 32]
+        this.drawCell(x, y, word)
+      }
+    }
+  }
+
+  renderToCanvas() {
+    // draw buffer to canvas
+    this.context.putImageData(this.imageData, 0, 0)
   }
 
   render() {
     if (this.connected) {
-      for(let y = 0; y < 12; y++) {
-        for(let x = 0; x < 32; x++) {
-          let word = this.emulator.RAM[this.memOffset + x + y * 32]
-          this.drawCell(x, y, word)
-        }
-      }
+      this.renderToBuffer()
+      requestAnimationFrame(this.renderToCanvas.bind(this))
     }
-    requestAnimationFrame(this.render.bind(this))
+    setTimeout(this.render.bind(this), 1000 / 30)
   }
 }
