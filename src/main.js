@@ -1,5 +1,6 @@
 import Emulator from './dcpu/emulator'
 import Thrusters from './dcpu/thrusters'
+import Monitor from './dcpu/lem1802'
 import BytecodeLoader from './dcpu/bytecode_loader'
 
 export default class Main {
@@ -12,6 +13,9 @@ export default class Main {
 
       let thrusters = new Thrusters(this.emulator, ship)
       this.emulator.devices.push(thrusters)
+
+      let monitor = new Monitor(this.emulator, this.buildMonitorCanvas())
+      this.emulator.devices.push(monitor)
 
       new BytecodeLoader(this.buildLoader(), bytecode => {
         this.emulator.reboot()
@@ -47,7 +51,7 @@ export default class Main {
     div.appendChild(input)
 
     let column = document.getElementById('left-column')
-    column.appendChild(div)
+    column.insertBefore(div, column.firstChild)
 
     return input
   }
@@ -63,8 +67,16 @@ export default class Main {
       canvas.width  = window.innerWidth - 700
     }
 
-
     let column = document.getElementById('right-column')
+    column.appendChild(canvas)
+    return canvas
+  }
+
+  buildMonitorCanvas() {
+    let canvas = document.createElement('canvas')
+    canvas.className = 'monitor'
+
+    let column = document.getElementById('left-column')
     column.appendChild(canvas)
     return canvas
   }
