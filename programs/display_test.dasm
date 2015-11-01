@@ -34,156 +34,72 @@
   SET A, 0
   SET B, 0x8000
   HWI [display_address]
-  SET PC, main_loop
 
-;;; Subroutine: Render Menu ;;;
-;;; A - Pointer a menu
-;;; B - Selected menu item (first item = 1)
-:render_menu
-  SET PUSH, C
-  SET PUSH, X
-  SET PUSH, Y
-  SET PUSH, Z
-  SET PUSH, I
-  SET PUSH, J
-
-  ; read number of menu items into z
-  SET Z, [A]
-
-  ; set i to the current item
-  SET I, A
-  ADD I, 1
-
-  ; clear screen
-  SET A, 0x0000
-  JSR clear_screen
-
-  ; set j to the current item index
-  SET J, 0
-
-  ; set y to the selected menu item (first item = 1)
-  SET Y, B
-
-:render_menu_item
-
-  IFE Z, 0
-  SET PC, render_menu_end
-
-  ; set a to memory location of first character
-  ; 0x8000 + (32 * (j + 3)) + 5
-  SET A, 0x8000
-  SET B, 32
-  SET X, J
-  ADD X, 3
-  MUL B, X
-  ADD A, B
-  ADD A, 5
-
-  ; set b to the string location
-  SET B, I
-
-  ; check if is active menu item and set colour
-  ADD J, 1
-  SET C, 0xe000
-  IFE J, Y
-  SET C, 0x0e00
-
-  ; render the stirng
-  JSR render_string
-
-  ; set i to the next item
-  SET I, B
-  ADD I, 1
-
-  ; increment the menu item
-  SUB Z, 1
-  SET PC, render_menu_item
-
-:render_menu_end
-  SET J, POP
-  SET I, POP
-  SET Z, POP
-  SET Y, POP
-  SET X, POP
-  SET C, POP
-  SET PC, POP
-
-;;; Subroutine: Render string ;;;
-;;; A - Screen memory location
-;;; B - String memory location (terminated by 0x0000)
-;;; C - Colour, e.g. 0x7a00
-:render_string
-
-:render_string_loop
-
-  ; terminator
-  IFE [B], 0x0000
-  SET PC, render_string_end
-
-  ; set colour
-  SET [A], C
-
-  ; set the character
-  XOR [A], [B]
-
-  ; increment
-  ADD A, 1
-  ADD B, 1
-  SET PC, render_string_loop
-
-:render_string_end
-  SET PC, POP
-
-;;; Subroutine: Clear screen ;;;
-;;; A - Screen colour, e.g. 0x0a00 for yellow
-:clear_screen
-  SET PUSH, I
-
+;;; Render bars ;;;
   SET I, 0x8000
 
-:clear_screen_loop
-  IFE I, 0x8180
-  SET PC, clear_screen_end
+:bar_loop_restart
+  SET X, 0
+  SET A, 0x0700
+  SET B, 0x0020
 
+:bar_loop
+  JSR draw_char
+  ADD I, 1
+
+  IFE X, 3
+  SET A, 0x0E00
+
+  IFE X, 7
+  SET A, 0x0300
+
+  IFE X, 11
+  SET A, 0x0200
+
+  IFE X, 15
+  SET A, 0x0500
+
+  IFE X, 19
+  SET A, 0x0400
+
+  IFE X, 23
+  SET A, 0x0100
+
+  IFE X, 27
+  SET A, 0x0000
+
+  ADD X, 1
+
+  IFL X, 32
+  SET PC, bar_loop
+
+  IFL I, 0x8180
+  SET PC, bar_loop_restart
+
+;;; Draw text
+
+  SET I, 0x80A0
+  SET C, text
+
+:draw_text_loop
+  SET A, 0xF000
+  SET B, [C]
+  JSR draw_char
+
+  ADD I, 1
+  ADD C, 1
+  IFN [C], 0x0000
+  SET PC, draw_text_loop
+
+  SUB PC, 1
+
+:draw_char
   ; set screen to our target colour
   SET [I], A
 
   ; set the character
-  XOR [I], 0x0020
-
-  ADD I, 1
-  SET PC, clear_screen_loop
-
-:clear_screen_end
-  SET I, POP
+  XOR [I], B
   SET PC, POP
 
-
-:main_loop
-  SET Y, 0
-
-:main_menu_loop
-  ; load main menu
-  SET A, main_menu
-  SET B, Y
-  JSR render_menu
-
-  ; wait a while
-  SET A, 0
-  SET B, 0
-
-:waity_waity
-  ADD A, 1
-  IFN A, 0xffff
-  SET PC, waity_waity
-
-  ADD Y, 1
-  IFE Y, 4
-  SET Y, 0
-  SET PC, main_menu_loop
-
-:main_menu
-  DAT 3 ; size
-  DAT " Information ", 0x0000
-  DAT " Messages ", 0x0000
-  DAT " Jobs ", 0x0000
+:text
+  DAT "      N O   S I G N A L         ", 0x0000

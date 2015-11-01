@@ -127,8 +127,8 @@ export default class Monitor {
     // TODO read palette when memory mapped
     let colour = DEFAULT_PALETTE[index]
 
-    let r = (((colour & 0xf00) >> 8) * 16) << 16
-    let g = (((colour & 0x0f0) >> 4) * 16) << 8
+    let r = ((colour & 0xf00) >> 8) * 16
+    let g = ((colour & 0x0f0) >> 4) * 16
     let b = (colour & 0x00f) * 16
 
     return `rgb(${r},${g},${b})`
