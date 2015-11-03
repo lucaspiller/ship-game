@@ -1,6 +1,7 @@
 import Emulator from './dcpu/emulator'
 import Thrusters from './dcpu/thrusters'
 import Monitor from './dcpu/lem1802'
+import InertialNavigation from './dcpu/inertial_navigation'
 import BytecodeLoader from './dcpu/bytecode_loader'
 
 export default class Main {
@@ -16,6 +17,9 @@ export default class Main {
 
       let monitor = new Monitor(this.emulator, this.buildMonitorCanvas())
       this.emulator.devices.push(monitor)
+
+      let nav = new InertialNavigation(this.emulator, ship)
+      this.emulator.devices.push(nav)
 
       new BytecodeLoader(this.buildLoader(), bytecode => {
         this.emulator.reboot()

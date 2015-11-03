@@ -1,0 +1,33 @@
+========== START SPECIFICATION ================================================
+
+---[ Hardware Information ]----------------------------------------------------
+
+Name:         Öpik Inertial Navigation System (INS20)
+ID:           0xe9c81842
+Version:      0x020f
+Manufacturer: 0x6db11857 (Öpik Navigation)
+
+---[ Description ]-------------------------------------------------------------
+
+The Öpik Inertial Navigation System is a highly accurate navigation system. It
+uses gyroscopes and accelerometers to continuously calculate positiion via
+dead-reckoning. On initialisation it uses a random reference frame, but it can
+be reconfigured to use a user provided reference frame.
+
+Positions and velocities are stored as 16bit values between 0 and 65536. If an
+overflow occurs, tracking will continue as normal.
+
+---[ Interrupt Behaviour ]-----------------------------------------------------
+
+When a HWI is received by the device, it reads the A register and does one of
+the following actions:
+
+  0 - Read position. Sets X and Y to the current position in meters.
+
+  1 - Read velocity. Sets X and Y to the current velocity (in each plane) in
+      m/s.
+
+  2 - Reset reference frame. Resets the reference frame to X and Y relative to
+      the current position.
+
+========== END SPECIFICATION ==================================================
