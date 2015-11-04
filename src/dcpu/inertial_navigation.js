@@ -46,10 +46,10 @@ export default class IntertialNavigation {
   }
 
   getXVelocity() {
-    return Math.abs(this.ship.velocity.x) & 0xffff
+    return Math.abs(this.ship.velocity.x * 1000) & 0xffff
   }
 
   getYVelocity() {
-    return Math.abs(this.ship.velocity.y) & 0xffff
+    return Math.abs(this.ship.velocity.y * 1000) & 0xffff
   }
 }
