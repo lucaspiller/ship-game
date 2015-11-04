@@ -1,0 +1,57 @@
+@font-face {
+  font-family: 'monoOne';
+  src: url("../fonts/monoOne.otf") format("otf"); }
+
+a, a:visited {
+  color: #aaa;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+html {
+  background-color: #2E4234;
+  color: #ddd;
+  font-family: monoOne, monospace; }
+
+#left-column {
+  padding: 5px;
+  float: left;
+  width: 690px; }
+
+#left-column footer {
+  position: absolute;
+  bottom: 0;
+}
+
+#right-column {
+  margin-left: 700px; }
+
+canvas.etag {
+  background-color: #000; }
+
+canvas.monitor {
+  background-color: #000;
+  width: 100%;
+  image-rendering: optimizeSpeed;
+  /* Older versions of FF          */
+  image-rendering: -moz-crisp-edges;
+  /* FF 6.0+                       */
+  image-rendering: -webkit-optimize-contrast;
+  /* Safari                        */
+  image-rendering: -o-crisp-edges;
+  /* OS X & Windows Opera (12.02+) */
+  image-rendering: pixelated;
+  /* Awesome future-browsers       */
+  -ms-interpolation-mode: nearest-neighbor;
+  /* IE                            */ }
+
+.box {
+  background-color: #1E2127;
+  padding: 10px;
+  margin-bottom: 5px; }
