@@ -11,7 +11,8 @@ class Controller
 Gt.Controller = Controller
 
 class Universe
-  LOOP_TARGET = 1000/60
+  RENDER_LOOP_TARGET = 1000/60 # 60 fps
+  PHYSICS_LOOP_TARGET = 1000/120 # 120 fps
 
   constructor: (options) ->
     @canvas = options?.canvas
@@ -24,8 +25,9 @@ class Universe
     @setupCanvas()
     @starfield.generate @viewpoint
     @buildPlayer()
-    setInterval (=> @loop()), LOOP_TARGET
-    @loop()
+    setInterval (=> @physicsLoop()), PHYSICS_LOOP_TARGET
+    @physicsLoop()
+    window.requestAnimationFrame @render
 
   setupCanvas: ->
     @viewpoint = new Viewpoint @canvas
@@ -33,21 +35,21 @@ class Universe
     @ctx.fillStyle = 'rgb(255, 255, 255)'
     @ctx.strokeStyle = 'rgb(255, 255, 255)'
 
-  loop: ->
+  physicsLoop: =>
     start = Date.now()
     @checkCollisions()
     @step()
-    @render()
-    renderTime = Date.now() - start
-    if renderTime > LOOP_TARGET
-      console.log 'Frame took ' + renderTime + 'ms'
+    physicsTime = Date.now() - start
+    if physicsTime > PHYSICS_LOOP_TARGET
+      console.warn 'Physics frame took ' + physicsTime + 'ms'
 
   step: ->
     @tick += 1
     @players.step()
     @masses.step()
 
-  render: ->
+  render: =>
+    start = Date.now()
     @viewpoint.update @player.ship if @player.ship?
 
     ctx = @ctx
@@ -63,6 +65,12 @@ class Universe
     @viewpoint.translate ctx
     @masses.render ctx
     ctx.restore()
+
+    renderTime = Date.now() - start
+    if renderTime > RENDER_LOOP_TARGET
+      console.warn 'Render frame took ' + renderTime + 'ms'
+
+    window.requestAnimationFrame @render
 
   buildPlayer: ->
     @player = new LocalPlayer { universe: this }
