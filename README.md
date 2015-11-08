@@ -10,3 +10,5 @@ and [sample programs](https://github.com/lucaspiller/ship-game/tree/master/progr
 The graphics are based on another game I wrote, [88etag](https://github.com/lucaspiller/88etag), but will probably change.
 
 You can play it at [http://lucaspiller.github.io/ship-game/](http://lucaspiller.github.io/ship-game/).
+
+Take a look at the [design document](https://github.com/lucaspiller/ship-game/blob/master/docs/design.md) for more details.
