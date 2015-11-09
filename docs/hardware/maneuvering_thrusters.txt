@@ -1,0 +1,45 @@
+========== START SPECIFICATION ================================================
+
+---[ Hardware Information ]----------------------------------------------------
+
+Name:         Maneuvering Thrusters
+ID:           0x89fc8697
+Version:      0x0001
+Manufacturer: 0x41acf57b (???)
+
+---[ Description ]-------------------------------------------------------------
+
+Maneuvering thrusters for precise movements at low speeds. The aft/bow
+thrusters provide a delta-v of 100 m/s. An artificial constraint is set on
+the maximum velocity of 300 m/s to aid maneuvering.
+
+---[ Interrupt Behaviour ]-----------------------------------------------------
+
+When a HWI is received by the device, it reads the A register and does one of
+the following actions:
+
+  0 - Reads the current state into B.
+
+  1 - Sets the current state to B.
+
+---[ State ]-------------------------------------------------------------------
+
+The thruster state is described as follows:
+
+High octet:
+
+0xf0 - Fire aft thrusters (go forward)
+0x0f - Fire bow thrusters (go backward)
+0x00 - Stop thrusters (ship will continue at current velocity)
+
+Low octet:
+
+0xf0 - Yaw the ship anti-clockwise
+0x0f - Yaw the ship clockwise
+0x00 - Stop yaw
+
+One state can be set in each group, for example:
+
+0xf00f - Go forward while rotating clockwise
+
+========== END SPECIFICATION ==================================================

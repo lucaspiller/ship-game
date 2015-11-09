@@ -155,7 +155,7 @@ class Player
 
   buildShip: ->
     x = @commandCentre.position.x
-    y = @commandCentre.position.y + @commandCentre.radius
+    y = @commandCentre.position.y + @commandCentre.radius + 50
 
     @ship = new Ship {
       position: Vector._new(x, y)
@@ -220,8 +220,8 @@ class Star
   render: (ctx, viewpoint, MULT) ->
     ctx.save()
 
-    x = @position.x - (viewpoint.position.x / (@z + 1))
-    y = @position.y - (viewpoint.position.y / (@z + 1))
+    x = @position.x - (viewpoint.position.x / ((@z * 100) + 5))
+    y = @position.y - (viewpoint.position.y / ((@z * 100) + 5))
 
     # wrap stars
     x -= Math.floor(x / (viewpoint.width * MULT)) * (viewpoint.width * MULT)
@@ -453,8 +453,8 @@ class Ship extends Mass
     options.layer = 2
     options.velocity = Vector._new(0, 0)
     @energy = options.energy or @maxEnergy
-    @max_speed = 3
-    @max_accel = 0.03
+    @max_speed = 300 / 120
+    @max_accel = 100 / 8640 # magic number?
     @trailDelay = 0
     super options
 
@@ -480,10 +480,10 @@ class Ship extends Mass
     ctx.stroke()
 
   forward: ->
-    @thrust Vector.plus @acceleration, Vector.times Vector._new(@rotation), @max_accel
+    @thrust Vector.times Vector._new(@rotation), @max_accel
 
   backward: ->
-    @thrust Vector.minus @acceleration, Vector.times Vector._new(@rotation), @max_accel
+    @thrust Vector.times Vector._new(@rotation), -@max_accel
 
   thrust: (accel) ->
     if @trailDelay <= 0
@@ -514,7 +514,6 @@ class Ship extends Mass
         @velocity = Vector.times newVelocity, (@max_speed / Vector._length newVelocity)
 
       @position = Vector.plus @position, @velocity
-      @acceleration = Vector.times @acceleration, 0.8 # drag
       @rotation += @rotationalVelocity
       @rotation = @rotation % (Math.PI * 2)
 

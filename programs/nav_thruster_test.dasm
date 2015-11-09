@@ -1,0 +1,149 @@
+;;; Hardware detection ;;;
+
+  HWN I ; read number of devices in i
+  SET J, 0
+
+:hardware_detection_loop
+  HWQ J ; query device j
+
+  ; monitor
+  IFE A, 0xf615
+  SET PC, monitor_detected
+
+  ; intertial navigation
+  IFE A, 0x1842
+  SET PC, nav_detected
+
+  ; thrusters
+  IFE A, 0x8697
+  SET PC, thrusters_detected
+
+:hardware_detection_loop_continue
+  ; increment counter
+  ADD J, 1
+  IFE J, I
+  SET PC, initialize_display
+
+  ; finished
+  SET PC, hardware_detection_loop
+
+:monitor_detected
+  SET [display_address], J
+  SET PC, hardware_detection_loop_continue
+
+:nav_detected
+  SET [nav_address], J
+  SET PC, hardware_detection_loop_continue
+
+:thrusters_detected
+  SET [thrusters_address], J
+  SET PC, hardware_detection_loop_continue
+
+:display_address
+  DAT 0xffff
+
+:nav_address
+  DAT 0xffff
+
+:thrusters_address
+  DAT 0xffff
+
+;;; Initialisation ;;;
+
+:initialize_display
+
+  ; map display to memory 0x8000 - 0x8180
+  SET A, 0
+  SET B, 0x8000
+  HWI [display_address]
+
+  ; reset reference frame
+  SET A, 0
+  HWI [nav_address]
+  SET A, 2
+  HWI [nav_address]
+
+:main_loop
+
+  ; fire aft thrusters
+  SET A, 1
+  SET B, 0xf000
+  HWI [thrusters_address]
+
+:update_screen
+
+;;; Read position into X and Y and draw
+
+  SET A, 0
+  HWI [nav_address]
+
+  SET A, X
+  SET I, 0x8022
+  JSR draw_text
+
+  SET A, Y
+  SET I, 0x8042
+  JSR draw_text
+
+;;; Read velocity into X and Y and draw
+
+  SET A, 1
+  HWI [nav_address]
+
+  SET A, X
+  SET I, 0x8082
+  JSR draw_text
+
+  SET A, Y
+  SET I, 0x80A2
+  JSR draw_text
+
+  SET A, 0
+
+:waity_waity
+  ADD A, 1
+  IFN A, 0x1fff
+  SET PC, waity_waity
+  SET PC, main_loop
+
+;;; Draw text
+
+:draw_text
+  SET PUSH, J
+  SET PUSH, B
+  SET J, 0
+
+:draw_text_loop
+
+  ; Read a bit of A into B
+  SET B, A
+  IFE J, 0
+  SHR B, 12
+  IFE J, 1
+  SHR B, 8
+  IFE J, 2
+  SHR B, 4
+  AND B, 0x000f
+
+  ; convert A - F
+  IFG B, 9
+  ADD B, 0x37
+
+  ; convert 0 - 9
+  IFL B, 0xa
+  ADD B, 0x30
+
+  ; set color
+  SET [I], 0xf000
+
+  ; set the character
+  XOR [I], B
+
+  ADD I, 1
+  ADD J, 1
+  IFL J, 4
+  SET PC, draw_text_loop
+
+  SET B, POP
+  SET J, POP
+  SET PC, POP

@@ -6,6 +6,7 @@ The following hardware from Notch's 0x10c specifications is available:
 As well as those, the following custom hardware is available:
 
 * [INS20 Inertial Navigation System](https://github.com/lucaspiller/ship-game/blob/master/docs/hardware/positioning_system.txt)
+* [Maneuvering Thrusters](https://github.com/lucaspiller/ship-game/blob/master/docs/hardware/maneuvering_thrusters.txt)
 
 Interaction with all hardware is via DCPU-16 standard `HWN`, `HWQ` and `HWI` instructions.
 
