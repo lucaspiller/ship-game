@@ -73,7 +73,9 @@ do intend for this to be multiplayer, but again it's not important right now.
 Once the game is playable and fun for a single player I can work on that -
 it'll probably just be me playing it anyway :)
 
-## Game Mechanics Overview
+## Game Mechanics
+
+### Overview
 
 You start with a (basic) spaceship and the galaxy is your oyster. Taking
 inspiration from Eve and the X-series, the storyline should be minimal with
@@ -153,6 +155,37 @@ refuel fairly often. When entering FTL, ships will set the direction in which
 they wish to travel, and can drop out of FTL at any time - including between
 known solar systems. It's up to the pilot to not do something stupid that
 requires them to fly for 5 years before they can refuel.
+
+### Communications
+
+Communications will be modelled on standard radio communications, where devices
+broadcast to all other devices listening on that channel in the area.
+Transmissions will happen instantly rather than travelling at the speed of
+light as simulating that will probably be computationally and bandwidth
+expensive given the number of radio communications that will probably happen.
+The communication devices will provide the basic radio-link and leave protocols
+up to the player.
+
+Initially there will be no form of interstellar communications (I quite like
+the idea of a Sneakernet system), but maybe a one-to-one communications device
+based on quantum entanglement could be added later to allow long distance
+communucations.
+
+### Play areas
+
+The play area will be split up into solar systems, so if the player wishes they
+can travel from one side of the solar system to the other (although it would
+take a very long time). Internally we will probably need to reduce this down
+into smaller areas, especially once multiplayer is added, but this should
+appear transparent to the user.
+
+Travel between solar systems will only be possible via FTL drives, which will
+cause the player to switch from one play area to another.
+
+Players should be able to drop out of FTL between solar systems which will put
+them in another play area. Internally the play areas should be very light
+weight and require minimal resources when there is no active DCPU or
+player in them.
 
 ## Further reading
 
