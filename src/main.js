@@ -3,6 +3,9 @@ import Thrusters from './dcpu/thrusters'
 import Monitor from './dcpu/lem1802'
 import InertialNavigation from './dcpu/inertial_navigation'
 import BytecodeLoader from './dcpu/bytecode_loader'
+import Modem from './dcpu/modem'
+
+import Client from './client'
 
 export default class Main {
   run() {
@@ -20,6 +23,11 @@ export default class Main {
 
       let nav = new InertialNavigation(this.emulator, ship)
       this.emulator.devices.push(nav)
+
+      let modem = new Modem(this.emulator, this.client)
+      this.emulator.devices.push(modem)
+
+      this.client.connect()
 
       new BytecodeLoader(this.buildLoader(), bytecode => {
         this.emulator.reboot()
@@ -41,6 +49,8 @@ export default class Main {
         }
       }
     }).bind(this)
+
+    this.client = new Client()
 
     Gt.c = new Gt.Controller(this.buildEtagCanvas())
   }

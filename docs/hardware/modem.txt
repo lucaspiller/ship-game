@@ -1,0 +1,89 @@
+========== START SPECIFICATION ================================================
+
+---[ Hardware Information ]----------------------------------------------------
+
+Name:         Radio modem
+ID:           0x43531910
+Version:      0x0003
+Manufacturer: 0x41acf57b (???)
+
+---[ Description ]-------------------------------------------------------------
+
+This radio modem allows long distance communications at the high speed with a
+data rate of up to 8192 bits/s (512 words/s). It usually comes paired with a
+low gain antenna which provides good omnidirectional coverage, and allows
+reliable transmission between two modems of distances up to 50,000 km. The
+modem has built in error checking and flow control. It isn't known exactly how
+it works, but it does.
+
+The modems contains two circular buffers of 63 words each. The modem operates
+in full-duplex mode, so can receive and transmit at the same time (on different
+channels). When transmitting data is read from the RX buffer, and when
+receiving data is written to the TX buffer.
+
+---[ Interrupt Behaviour ]-----------------------------------------------------
+
+When a HWI is received by the modem, it reads the A register and does one of
+the following actions:
+
+  0 - Read state. Sets B to the current state (see below).
+
+  1 - Set mode. Sets the mode to B (see below).
+
+  2 - Set TX channel. Sets the TX channel to the low byte of B. If B is 0x00
+      transmission will be disabled.
+
+  3 - Set RX channel. Sets the RX channel to the low byte of B. If B is 0x00
+      recieving will be disabled.
+
+  4 - Transmit data. Copies B words from [C] into the TX buffer and starts
+      transmitting. If B is bigger than the free space in the TX buffer, data
+      waiting to transmitted will be overridden. Writes to the TX buffer happen
+      atomically - data will not be transmitted until the write is complete.
+
+  5 - Receive data. Copies data from the RX buffer into RAM starting
+      at [C]. The number of words read from the RX buffer is written into B.
+
+  6 - Enable RX interrupt. Fires an interrupt with message B when data is
+      received. If B is 0, interrupts are disabled.
+
+---[ Channels ]----------------------------------------------------------------
+
+There are 254 available channels, described by a half word 0x01 - 0xff. The
+modem operates in full-duplex mode, so it should be set to receive and transmit
+on two different channels.
+
+The value 0x00 is reserved and means a channel is not set (TX / RX is
+disabled).
+
+The modem operates in the S band, with a channel width of 5 Mhz. All channels
+are currently unlicensed and free for civilian use.
+
+========== END SPECIFICATION ==================================================
+
+# FAQ
+
+* Why is there no concept of packets or IPs / addressing?
+
+In the [OSI model](https://en.wikipedia.org/wiki/OSI_model) this device is
+intended to fullfil the requirements of the Physical Layer, but the concept of
+packets and addressing are part of higher layers.
+
+The device also includes parts from the Data Link Layer such as flow control
+and reliable transmission, but this is purely to make it simpler to simulate in
+game. The idea is that you can use this to build whatever you want, e.g. a
+packet switched data network, a radio broadcast system, a spy interception
+system - so whatever protocol you want will be built on top of this.
+
+* Why is there no concept of power levels?
+
+In reality radio transmitters don't need much power. GSM signals are
+transmitted by your phone at a maximum of 2W, and the Apollo missions used a
+20W transmitter to transmit video from the Moon (and that is only used while
+transmitting at the full data rate). To a space ship that has a fusion power
+source this is nothing, so varying the power levels of the radio transmitter to
+save power doesn't make sense.
+
+It could make sense to restrict transmission range, i.e. to keep something
+secret - but to keep things simple this has been left out for now. It can
+easily be added later if a good use is discovered.

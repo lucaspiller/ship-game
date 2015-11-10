@@ -1,0 +1,220 @@
+.define KEYBOARD_INTERRUPT 0x4801
+.define MODEM_INTERRUPT    0x1804
+
+;;; Hardware detection ;;;
+
+  HWN I ; read number of devices in i
+  SET J, 0
+
+:hardware_detection_loop
+  HWQ J ; query device j
+
+  ; monitor
+  IFE A, 0xf615
+  SET PC, monitor_detected
+
+  ; keyboard
+  IFE A, 0x7406
+  SET PC, keyboard_detected
+
+  ; modem
+  IFE A, 0x1910
+  SET PC, modem_detected
+
+:hardware_detection_loop_continue
+  ; increment counter
+  ADD J, 1
+  IFE J, I
+  SET PC, initialization
+
+  ; finished
+  SET PC, hardware_detection_loop
+
+:monitor_detected
+  SET [display_address], J
+  SET PC, hardware_detection_loop_continue
+
+:keyboard_detected
+  SET [keyboard_address], J
+  SET PC, hardware_detection_loop_continue
+
+:modem_detected
+  SET [modem_address], J
+  SET PC, hardware_detection_loop_continue
+
+:display_address
+  DAT 0xffff
+
+:keyboard_address
+  DAT 0xffff
+
+:modem_address
+  DAT 0xffff
+
+;;; Initialisation ;;;
+
+:initialization
+
+  ; map display to memory 0x8000 - 0x8180
+  SET A, 0
+  SET B, 0x8000
+  HWI [display_address]
+
+  ; enable keyboard interrupts
+  SET A, 3
+  SET B, KEYBOARD_INTERRUPT
+  HWI [keyboard_address]
+
+  ; tell modem to send and receive on 0x10
+  SET A, 2
+  SET B, 0x10
+  HWI [modem_address]
+
+  SET A, 3
+  SET B, 0x10
+  HWI [modem_address]
+
+  ; enable modem interrupts
+  SET A, 6
+  SET B, MODEM_INTERRUPT
+  HWI [modem_address]
+
+  ; setup interrupts
+  IAS interrupt_handler
+
+:main_loop
+
+  SET J, 0
+  SUB PC, 1
+
+;;; Interrupt handling
+
+:interrupt_handler
+  IFE A, KEYBOARD_INTERRUPT
+  JSR read_keyboard
+
+  IFE A, MODEM_INTERRUPT
+  JSR read_modem
+
+  ; disable interrupts and return
+  RFI 0
+
+:read_keyboard
+
+  ; read character read into C
+  SET A, 1
+  HWI [keyboard_address]
+
+  ; add to buffer if ASCII
+  IFG C, 0x1F
+  IFL C, 0x7f
+  SET PC, add_to_buffer
+
+  ; transmit on enter
+  IFE C, 0x11
+  SET PC, transmit
+
+  ; otherwise ignore it
+  ; return to IA handler
+  SET PC, POP
+
+:add_to_buffer
+  ; add to buffer
+  SET B, [message_buffer_index]
+  SET A, message_buffer
+  ADD A, B
+  SET [A], C
+
+  ; render to screen
+  SET I, 0x8160
+  ADD I, B
+  SET [I], 0x0F00 ; set colours
+  XOR [I], C      ; draw character
+
+  ; increment buffer index
+  ADD B, 1
+  SET [message_buffer_index], B
+
+  ; return to IA handler
+  SET PC, POP
+
+:transmit
+  ; add terminator
+  SET A, [message_buffer_index]
+  ADD A, message_buffer
+  SET [A], 0x0
+
+  ; send to modem
+  SET A, 4
+  SET B, [message_buffer_index]
+  ADD B, 1
+  SET C, message_buffer
+  HWI [modem_address]
+
+  ; clear screen
+  SET I, 0x8160
+  SET A, 0
+  SET B, [message_buffer_index]
+:transmit_clear_loop
+  SET [I], 0xF000 ; set colours
+  XOR [I], 0x0020 ; draw empty character
+  IFE A, B
+  SET PC, transmit_end_loop
+
+  ADD I, 1
+  ADD A, 1
+  SET PC, transmit_clear_loop
+
+:transmit_end_loop
+  ; reset buffer
+  SET [message_buffer_index], 0
+
+  ; return to IA handler
+  SET PC, POP
+
+:read_modem
+  SET A, 5
+  SET C, modem_buffer
+  HWI [modem_address]
+
+  ; print to screen
+  SET I, 0x20
+  MUL I, [line]
+  ADD I, 0x8000
+  SET J, modem_buffer
+  SET A, 0
+:read_loop
+  IFE [J], 0x0
+  SET PC, read_end_loop
+
+  SET [I], 0xF000 ; set colours
+  XOR [I], [J]    ; draw character
+  IFE A, B
+  SET PC, read_end_loop
+
+  ADD I, 1
+  ADD J, 1
+  ADD A, 1
+  SET PC, read_loop
+
+:read_end_loop
+  SET J, [line]
+  ADD J, 1
+  IFE J, 11
+  SET J, 0
+  SET [line], J
+
+  ; return to IA handler
+  SET PC, POP
+
+:message_buffer_index
+  DAT 0
+
+:message_buffer
+  DAT "                                  "
+
+:modem_buffer
+  DAT "                                  "
+
+:line
+  DAT 0
