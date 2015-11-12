@@ -39,6 +39,10 @@ export default class BytecodeLoader {
     let callback = this.callback
     let reader = new FileReader()
     reader.onload = function() {
+      if (reader.result.indexOf("SET ") > 0) {
+        alert("It looks like you selected an Assembly source file. Only compiled bytecode (in little endian format) is supported.")
+      }
+
       let bytecode = new Array(Math.ceil(reader.result.length / 2))
 
       let i = 0
