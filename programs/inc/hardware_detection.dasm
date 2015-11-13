@@ -1,0 +1,49 @@
+:hardware_detection
+  HWN I ; read number of devices into I
+  SET J, 0
+
+:hardware_detection_loop
+  HWQ J ; query device J
+
+  ; display
+  IFE A, 0xf615
+  SET [display_port], J
+
+  ; keyboard
+  IFE A, 0x7406
+  SET [keyboard_port], J
+
+  ; modem
+  IFE A, 0x1910
+  SET [modem_port], J
+
+  ; navigation
+  IFE A, 0x1842
+  SET [nav_port], J
+
+  ; thrusters
+  IFE A, 0x8697
+  SET [thrusters_port], J
+
+  ; increment counter
+  ADD J, 1
+  IFN J, I
+  SET PC, hardware_detection_loop
+
+  ; finished
+  SET PC, POP
+
+:display_port
+  DAT 0
+
+:keyboard_port
+  DAT 0
+
+:modem_port
+  DAT 0
+
+:nav_port
+  DAT 0
+
+:thrusters_port
+  DAT 0

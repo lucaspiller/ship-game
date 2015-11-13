@@ -1,83 +1,38 @@
 .define KEYBOARD_INTERRUPT 0x4801
 .define MODEM_INTERRUPT    0x1804
 
-;;; Hardware detection ;;;
+SET PC, initialisation
 
-  HWN I ; read number of devices in i
-  SET J, 0
-
-:hardware_detection_loop
-  HWQ J ; query device j
-
-  ; monitor
-  IFE A, 0xf615
-  SET PC, monitor_detected
-
-  ; keyboard
-  IFE A, 0x7406
-  SET PC, keyboard_detected
-
-  ; modem
-  IFE A, 0x1910
-  SET PC, modem_detected
-
-:hardware_detection_loop_continue
-  ; increment counter
-  ADD J, 1
-  IFE J, I
-  SET PC, initialization
-
-  ; finished
-  SET PC, hardware_detection_loop
-
-:monitor_detected
-  SET [display_address], J
-  SET PC, hardware_detection_loop_continue
-
-:keyboard_detected
-  SET [keyboard_address], J
-  SET PC, hardware_detection_loop_continue
-
-:modem_detected
-  SET [modem_address], J
-  SET PC, hardware_detection_loop_continue
-
-:display_address
-  DAT 0xffff
-
-:keyboard_address
-  DAT 0xffff
-
-:modem_address
-  DAT 0xffff
+.include inc/hardware_detection
 
 ;;; Initialisation ;;;
 
-:initialization
+:initialisation
+  JSR hardware_detection
 
   ; map display to memory 0x8000 - 0x8180
   SET A, 0
   SET B, 0x8000
-  HWI [display_address]
+  HWI [display_port]
 
   ; enable keyboard interrupts
   SET A, 3
   SET B, KEYBOARD_INTERRUPT
-  HWI [keyboard_address]
+  HWI [keyboard_port]
 
   ; tell modem to send and receive on 0x10
   SET A, 2
   SET B, 0x10
-  HWI [modem_address]
+  HWI [modem_port]
 
   SET A, 3
   SET B, 0x10
-  HWI [modem_address]
+  HWI [modem_port]
 
   ; enable modem interrupts
   SET A, 6
   SET B, MODEM_INTERRUPT
-  HWI [modem_address]
+  HWI [modem_port]
 
   ; setup interrupts
   IAS interrupt_handler
@@ -103,7 +58,7 @@
 
   ; read character read into C
   SET A, 1
-  HWI [keyboard_address]
+  HWI [keyboard_port]
 
   ; add to buffer if ASCII
   IFG C, 0x1F
@@ -149,7 +104,7 @@
   SET B, [message_buffer_index]
   ADD B, 1
   SET C, message_buffer
-  HWI [modem_address]
+  HWI [modem_port]
 
   ; clear screen
   SET I, 0x8160
@@ -175,7 +130,7 @@
 :read_modem
   SET A, 5
   SET C, modem_buffer
-  HWI [modem_address]
+  HWI [modem_port]
 
   ; print to screen
   SET I, 0x20
