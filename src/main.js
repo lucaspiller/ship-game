@@ -1,4 +1,5 @@
 import Emulator from './dcpu/emulator'
+import Debugger from './dcpu/debugger'
 import Thrusters from './dcpu/thrusters'
 import Monitor from './dcpu/lem1802'
 import InertialNavigation from './dcpu/inertial_navigation'
@@ -28,6 +29,10 @@ export default class Main {
       this.emulator.devices.push(modem)
 
       this.client.connect()
+
+      if (window.location.hash == "#debugger") {
+        this.setupDebugger();
+      }
 
       new BytecodeLoader(this.buildLoader(), bytecode => {
         this.emulator.reboot()
@@ -93,5 +98,33 @@ export default class Main {
     let column = document.getElementById('left-column')
     column.appendChild(canvas)
     return canvas
+  }
+
+  setupDebugger() {
+    console.log('Running debugger');
+
+    let _debugger = new Debugger(this.emulator)
+    _debugger.onStep = (location) => {
+      let table = {
+        val: {},
+        mem: {}
+      }
+
+      for(let reg in this.emulator.Registers) {
+        let val = this.emulator.Registers[reg].get();
+        let memoryVal = this.emulator.RAM[val] || 0;
+
+        table.val[reg] = val.toString(16);
+        table.mem[reg] = memoryVal.toString(16);
+      }
+
+      console.table(table);
+    }
+    _debugger.onPaused = _debugger.onStep;
+    _debugger.toggleBreakpoint("0", "0");
+
+    window.n = function() {
+      _debugger.step();
+    }
   }
 }
