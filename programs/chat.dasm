@@ -4,6 +4,7 @@
 SET PC, initialisation
 
 .include inc/hardware_detection
+.include inc/display
 
 ;;; Initialisation ;;;
 
@@ -11,9 +12,7 @@ SET PC, initialisation
   JSR hardware_detection
 
   ; map display to memory 0x8000 - 0x8180
-  SET A, 0
-  SET B, 0x8000
-  HWI [display_port]
+  JSR display_init
 
   ; enable keyboard interrupts
   SET A, 3
@@ -38,8 +37,11 @@ SET PC, initialisation
   IAS interrupt_handler
 
 :main_loop
+  ; clear input line of screen
+  SET Y, 11
+  SET B, 0xFF00
+  JSR render_clear_line
 
-  SET J, 0
   SUB PC, 1
 
 ;;; Interrupt handling
@@ -69,26 +71,49 @@ SET PC, initialisation
   IFE C, 0x11
   SET PC, transmit
 
+  ; delete on backspace
+  IFE C, 0x10
+  SET PC, delete
+
   ; otherwise ignore it
   ; return to IA handler
   SET PC, POP
 
 :add_to_buffer
-  ; add to buffer
-  SET B, [message_buffer_index]
+  ; ignore if this will cause an overflow (> 32 chars)
+  SET X, [message_buffer_index]
+  IFG X, 31
+  SET PC, POP
+
   SET A, message_buffer
-  ADD A, B
+  ADD A, X
   SET [A], C
 
   ; render to screen
-  SET I, 0x8160
-  ADD I, B
-  SET [I], 0x0F00 ; set colours
-  XOR [I], C      ; draw character
+  SET Y, 11
+  SET B, 0x0F00
+  JSR render_char_xy
 
   ; increment buffer index
-  ADD B, 1
-  SET [message_buffer_index], B
+  ADD X, 1
+  SET [message_buffer_index], X
+
+  ; return to IA handler
+  SET PC, POP
+
+:delete
+  ; decrement buffer index
+  SET X, [message_buffer_index]
+  SUB X, 1
+
+  ; clear screen
+  SET Y, 11
+  SET B, 0x0F00
+  SET C, 0x20
+  JSR render_char_xy
+
+  ; save buffer index
+  SET [message_buffer_index], X
 
   ; return to IA handler
   SET PC, POP
@@ -106,21 +131,11 @@ SET PC, initialisation
   SET C, message_buffer
   HWI [modem_port]
 
-  ; clear screen
-  SET I, 0x8160
-  SET A, 0
-  SET B, [message_buffer_index]
-:transmit_clear_loop
-  SET [I], 0xF000 ; set colours
-  XOR [I], 0x0020 ; draw empty character
-  IFE A, B
-  SET PC, transmit_end_loop
+  ; clear input line of screen
+  SET Y, 11
+  SET B, 0xFF00
+  JSR render_clear_line
 
-  ADD I, 1
-  ADD A, 1
-  SET PC, transmit_clear_loop
-
-:transmit_end_loop
   ; reset buffer
   SET [message_buffer_index], 0
 
@@ -132,32 +147,35 @@ SET PC, initialisation
   SET C, modem_buffer
   HWI [modem_port]
 
+  ; clear line
+  SET Y, [line]
+  SET B, 0xF000
+  JSR render_clear_line
+
   ; print to screen
-  SET I, 0x20
-  MUL I, [line]
-  ADD I, 0x8000
-  SET J, modem_buffer
-  SET A, 0
+  SET I, modem_buffer
+  SET B, 0xF000
+  SET X, 0
+
 :read_loop
-  IFE [J], 0x0
+  ; check for terminator
+  SET C, [I]
+  IFE C, 0x0
   SET PC, read_end_loop
 
-  SET [I], 0xF000 ; set colours
-  XOR [I], [J]    ; draw character
-  IFE A, B
-  SET PC, read_end_loop
+  ; otherwise render
+  JSR render_char_xy
 
+  ADD X, 1
   ADD I, 1
-  ADD J, 1
-  ADD A, 1
   SET PC, read_loop
 
 :read_end_loop
-  SET J, [line]
-  ADD J, 1
-  IFE J, 11
-  SET J, 0
-  SET [line], J
+  ; increment line number
+  ADD Y, 1
+  IFE Y, 11
+  SET Y, 0
+  SET [line], Y
 
   ; return to IA handler
   SET PC, POP
@@ -165,11 +183,11 @@ SET PC, initialisation
 :message_buffer_index
   DAT 0
 
+:line
+  DAT 0
+
 :message_buffer
   DAT "                                  "
 
 :modem_buffer
   DAT "                                  "
-
-:line
-  DAT 0

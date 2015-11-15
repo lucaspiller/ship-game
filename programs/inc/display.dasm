@@ -1,0 +1,62 @@
+.define DISPLAY_MAP 0x8000
+
+; Map display to memory 0x8000 - 0x8180
+:display_init
+  SET A, 0
+  SET B, DISPLAY_MAP
+  HWI [display_port]
+
+  SET PC, POP
+
+; Render a single character to the screen (by memory location)
+;   A - Memory location
+;   B - Colour
+;   C - Character
+:render_char
+  SET [A], B ; set colours
+  XOR [A], C ; draw character
+
+  SET PC, POP
+
+; Render a single character to the screen (by coordinates)
+;   X - X location (0 index)
+;   Y - Y location (0 index)
+;   B - Colour
+;   C - Character
+:render_char_xy
+  SET PUSH, A
+
+  ; A = 0x8000 + (Y * 0x20) + X
+  SET A, 0x20
+  MUL A, Y
+  ADD A, X
+  ADD A, DISPLAY_MAP
+
+  JSR render_char
+
+  SET A, POP
+  SET PC, POP
+
+; Clears a line of the screen
+;   Y - Y location (0 index)
+;   B - Colour
+:render_clear_line
+  SET PUSH, X
+  SET PUSH, C
+
+  SET X, 0
+  SET C, 0x20
+
+:render_clear_line_loop
+  JSR render_char_xy
+
+  IFE X, 31
+  SET PC, render_clear_line_end
+
+  ADD X, 1
+  SET PC, render_clear_line_loop
+
+:render_clear_line_end
+  SET C, POP
+  SET X, POP
+  SET PC, POP
