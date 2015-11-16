@@ -15,13 +15,8 @@ export default class Modem {
     this.txChannel = 0
 
     this.txBuffer     = []
-    this.txStartIndex = 0
-    this.txEndIndex   = 0
-    this.txDelay      = 0
-
     this.rxBuffer     = []
-    this.rxStartIndex = 0
-    this.rxEndIndex   = 0
+    this.txDelay      = 0
 
     this.rxInterruptMessage = 0
 
@@ -88,19 +83,19 @@ export default class Modem {
   }
 
   transmitData(length, memoryOffset) {
+    let i = memoryOffset
     for(let i = memoryOffset; i < memoryOffset + length; i++) {
-      this.txBuffer[this.txEndIndex++] = this.emulator.RAM[i]
+      this.txBuffer.push(this.emulator.RAM[i])
     }
-    console.log('wrote', length, 'words to tx buffer', this.txStartIndex, this.txEndIndex)
   }
 
   receiveData(memoryOffset) {
     let i = memoryOffset
-    while(this.rxStartIndex < this.rxEndIndex) {
-      this.emulator.RAM[i++] = this.rxBuffer[this.rxStartIndex++]
+    let length = this.rxBuffer.length
+
+    while (this.rxBuffer.length > 0) {
+      this.emulator.RAM[i++] = this.rxBuffer.shift()
     }
-    let length = memoryOffset - i
-    console.log('read', length, 'words from rx buffer', this.rxStartIndex, this.rxEndIndex)
     return length
   }
 
@@ -114,16 +109,10 @@ export default class Modem {
     }
 
     if (this.txDelay == 0) {
-      if (this.txStartIndex < this.txEndIndex) {
-        var txData = []
-
-        while (this.txStartIndex < this.txEndIndex) {
-          txData.push(this.txBuffer[this.txStartIndex++]);
-          this.txDelay++
-        }
-
-        this.client.transmit(this.txChannel, txData);
-        console.log("read", txData.length, "words from tx buffer", this.txStartIndex, this.txEndIndex);
+      if (this.txBuffer.length > 0) {
+        this.txDelay += this.txBuffer.length
+        this.client.transmit(this.txChannel, this.txBuffer);
+        this.txBuffer = []
       }
     }
   }
@@ -131,9 +120,8 @@ export default class Modem {
   receive(channel, data) {
     if (this.rxChannel == channel) {
       for (var i = 0; i < data.length; i++) {
-        this.rxBuffer[this.rxEndIndex++] = data[i];
+        this.rxBuffer.push(data[i]);
       }
-      console.log('wrote', data.length, 'words to rx buffer', this.rxStartIndex, this.rxEndIndex)
 
       if (this.rxInterruptMessage) {
         this.emulator.interrupt(this.rxInterruptMessage);
