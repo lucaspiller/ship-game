@@ -1,0 +1,484 @@
+;
+; DTerm Protocol
+; ==============
+;
+; Introduction
+; ------------
+;
+; The DTerm Protocol (DTP) is designed to provide a standard means of
+; interfacing with terminal devices over a radio link. It is designed to
+; operate over low speed, high latency links with no packet loss.
+;
+; Packet structure
+; ----------------
+;
+;    0      7 8     15 16    23 24    31
+;   +--------+--------+--------+--------+
+;   |    Session ID   |Protocol|Length  |
+;   +--------+--------+--------+--------+
+;   | Command List...
+;   +-----------------...
+;
+; Session ID is a randomly generated identifier for the current session.
+;
+; Protocol is a required field and should always be 0x3E.
+;
+; Length is the length in words of the packet (command list and header).
+;
+; Command List structure
+; ----------------------
+;
+;    0      7 8     15 16    23 24    31
+;   +--------+--------+--------+--------+
+;   |Command | Length | Data...
+;   +--------+--------+--------+--------+
+;
+; Command refers to a protocol command (listed below). Some commands require
+; data, in which case the Data field should be included. Length refers to the
+; length of the Data field in words. Data should be padded to a word boundary.
+;
+; If the command does not require data, Length should be sent as 0.
+;
+; Multiple commands can be sent in a single packet by chaining the
+; above structure together.
+;
+; Lifecycle
+; ---------
+;
+;     Client                  Server
+;
+;     ClientHello ---------->
+;                 <---------- ServerHello
+;
+;     CommandData <---------> CommandData
+;                     ...
+;
+;     ClientBye   ---------->
+;                 <---------- ServerBye
+;
+; Each lifecycle must use a new Session ID.
+;
+; Commands
+; --------
+;
+;   Client commands:
+;
+;    0x50 - ClientHello
+;           Sent by the client to initiate a new session
+;
+;           Data:
+;
+;            0      7 8     15
+;           +--------+--------+
+;           | Width  | Height |
+;           +--------+--------+
+;
+;           Width - Terminal width
+;           Height - Terminal height
+;
+;    0x49 - ClientBye
+;           Sent by the client when ending the session, or acknowledging a
+;           ServerBye command.
+;
+;           After this has been sent or received, no further commands should be
+;           sent without starting a new lifecycle.
+;
+;           Data: none
+;
+;    0x48 - KeyboardInput
+;           Sent when a key is pressed on the keyboard
+;
+;           Data:
+;
+;            0      7 8     15
+;           +--------+--------+
+;           +  0x00  | Code   |
+;           +--------+--------+
+;
+;           Code - Standard keyboard code. Only one code can be sent per command.
+;
+;   Server commands:
+;
+;    0x51 - ServerHello
+;           Sent by the server to acknowledge the ClientHello, after this the
+;           server and client can begin sending other commands.
+;
+;           Data: none
+;
+;    0x52 - ServerBye
+;           Sent by the server when ending the session, or acknowledging a
+;           ClientBye command.
+;
+;           After this has been sent or received, no further commands should be
+;           sent without starting a new lifecycle.
+;
+;           Data: none
+;
+;    0x53 - Output
+;           Print characters to the screen at the current cursor position
+;
+;           Data:
+;
+;            0      7 8     15
+;           +--------+--------+
+;           |  Char  |
+;           +--------+...
+;
+;           Char - An ASCII encoded character. Multiple characters can be sent
+;           per command.
+;
+;           Data should be padded to the word boundary with 0x00.
+;
+;    0x54 - MoveCursor
+;           Moves the cursor to the given position
+;
+;           Data:
+;
+;            0      7 8     15
+;           +--------+--------+
+;           |   X    |   Y    |
+;           +--------+--------+
+;
+;           X - Vertical column
+;           Y - Horizontal column
+;
+;    0x55 - SetColour
+;           Sets the colour for any new characters to be printed
+;
+;           Data:
+;
+;            0      7 8      15
+;           +---------+--------+
+;           | Bg | Fg |  0x00  |
+;           +---------+--------+
+;
+;           Bits 0 - 7 refer to the background colour
+;           Bits 4 - 7 refer to the foreground colour
+;           Bits 8 - 15 are padding
+;
+;    0x56 - ClearScreen
+;           Clears the screen to the current background colour, and moves the
+;           cursor to (0,0)
+;
+; Positions / Sizes
+; -----------------
+;
+; Positions and sizes always refer to the character positions - i.e. they are
+; indepedant of font sizes. They are zero indexed, where (0,0) refers to the
+; top left of the screen.
+;
+
+.define KEYBOARD_INTERRUPT 0x4801
+.define MODEM_INTERRUPT    0x1804
+
+SET PC, initialisation
+
+.include inc/hardware_detection
+.include inc/display
+
+;;; Initialisation ;;;
+
+:initialisation
+  JSR hardware_detection
+
+  ; map display to memory 0x8000 - 0x8180
+  JSR display_init
+
+  ; enable keyboard interrupts
+  SET A, 3
+  SET B, KEYBOARD_INTERRUPT
+  HWI [keyboard_port]
+
+  ; tell modem to send on 0x10
+  SET A, 2
+  SET B, 0x10
+  HWI [modem_port]
+
+  ; tell modem to receive on 0x11
+  SET A, 3
+  SET B, 0x11
+  HWI [modem_port]
+
+  ; enable modem interrupts
+  SET A, 6
+  SET B, MODEM_INTERRUPT
+  HWI [modem_port]
+
+  ; setup interrupts
+  IAS interrupt_handler
+
+:main_loop
+  ; send ClientHello
+  SET [modem_buffer + 0], [session_id] ; session id
+  SET [modem_buffer + 1], 0x3e02       ; protocol + length
+  SET [modem_buffer + 2], 0x5001       ; command + length
+  SET [modem_buffer + 3], 0x200C       ; width + height
+
+  SET A, 4            ; transmit
+  SET B, 4            ; data length
+  SET C, modem_buffer ; data
+  HWI [modem_port]
+
+  SUB PC, 1
+
+;;; Interrupt handling
+
+:interrupt_handler
+  IFE A, KEYBOARD_INTERRUPT
+  JSR read_keyboard
+
+  IFE A, MODEM_INTERRUPT
+  JSR read_modem
+
+  ; disable interrupts and return
+  RFI 0
+
+:read_keyboard
+  ; read key code read into C
+  SET A, 1
+  HWI [keyboard_port]
+
+  ; send KeyboardInput
+  SET [modem_buffer + 0], [session_id] ; session id
+  SET [modem_buffer + 1], 0x3e02       ; protocol + length
+  SET [modem_buffer + 2], 0x4801       ; command + length
+  SET [modem_buffer + 3], C            ; 0x00 + code
+
+  SET A, 4            ; transmit
+  SET B, 4            ; data length
+  SET C, modem_buffer ; data
+  HWI [modem_port]
+
+  ; return to IA handler
+  SET PC, POP
+
+:read_modem
+  SET A, 5             ; read
+  SET C, modem_buffer  ; data
+  HWI [modem_port]
+  ; B contains number of bytes read
+
+  ; check session id, and return if invalid
+  IFN [modem_buffer + 0], [session_id]
+  SET PC, POP
+
+  ; check protocol and return if invalid
+  SET I, [modem_buffer + 1]
+  AND I, 0xff00
+  IFN I, 0x3e00
+  SET PC, POP
+
+  ; read packet length into I
+  SET I, [modem_buffer + 1]
+  AND I, 0x00ff
+
+  ; add buffer position so: I = modem_buffer + packet length
+  ADD I, modem_buffer
+
+  ; pointer to current byte in buffer
+  SET J, modem_buffer + 2
+
+:read_loop
+  ; return once we've read the entire packet
+  IFE I, J
+  SET PC, POP
+
+  ; read command into C
+  SET C, [J]
+  AND C, 0xff00
+  SHR C, 8
+
+  ; read data length into B
+  SET B, [J]
+  AND B, 0x00ff
+
+  ; ServerHello
+  IFE C, 0x51
+  JSR dtp_server_hello
+
+  ; ServerBye
+  IFE C, 0x52
+  JSR dtp_server_bye
+
+  ; Output
+  IFE C, 0x53
+  JSR dtp_output
+
+  ; MoveCursor
+  IFE C, 0x54
+  JSR dtp_move_cursor
+
+  ; SetColour
+  IFE C, 0x55
+  JSR dtp_set_colour
+
+  ; ClearScreen
+  IFE C, 0x56
+  JSR dtp_clear_screen
+
+  ; (Silently ignore invalid commands)
+
+  ; increment buffer
+  ADD J, 1
+  SET PC, read_loop
+
+:dtp_server_hello
+  ; reset colour and clear screen
+  SET [colour], 0x0F00
+  JSR dtp_clear_screen
+
+  SET PC, POP
+
+:dtp_server_bye
+  ; halt
+  SUB PC, 1
+
+:dtp_output
+  SET PUSH, B
+  SET PUSH, C
+  SET PUSH, I
+
+  ; Z is the data length
+  SET Z, B
+
+  ; I is a counter from 0 to Z
+  SET I, 0
+
+:dtp_output_loop
+  IFE I, Z
+  SET PC, dtp_output_end
+
+  ; read cursor position into X and Y
+  SET X, [cursor_x]
+  SET Y, [cursor_y]
+
+  ; read colour into B
+  SET B, [colour]
+
+  ; read high character into C
+  ADD J, 1
+  SET C, [J]
+  AND C, 0xff00
+  SHR C, 8
+
+  ; render!
+  JSR render_char_xy
+
+  ; increment cursor
+  ADD X, 1
+
+  ; check for wrapping
+  IFE X, 32
+  JSR wrap_cursor
+
+  ; read low character into C
+  SET C, [J]
+  AND C, 0x00ff
+
+  ; check there is a low character (it could be padded)
+  IFE C, 0
+  SET PC, dtp_output_skip_low_character
+
+  ; render!
+  JSR render_char_xy
+
+  ; increment cursor
+  ADD X, 1
+
+  ; check for wrapping
+  IFE X, 32
+  JSR wrap_cursor
+
+:dtp_output_skip_low_character
+  ; save
+  SET [cursor_x], X
+  SET [cursor_y], Y
+
+  ; continue
+  ADD I, 1
+  SET PC, dtp_output_loop
+
+:dtp_output_end
+  SET I, POP
+  SET C, POP
+  SET B, POP
+  SET PC, POP
+
+; wraps the cursor to the next line if X == 13
+:wrap_cursor
+  SET X, 0
+  ADD Y, 1
+
+  ; subtract 1 if Y == 13 to prevent overflow (TODO scrolling)
+  IFE Y, 12
+  SUB Y, 1
+
+  SET PC, POP
+
+:dtp_move_cursor
+  SET PUSH, A
+  ADD J, 1
+
+  ; read X into [cursor_x]
+  SET A, [J]
+  AND A, 0xFF00
+  SHR A, 8
+  SET [cursor_x], A
+
+  ; read Y into [cursor_x]
+  SET A, [J]
+  AND A, 0x00FF
+  SET [cursor_y], A
+
+  SET A, POP
+  SET PC, POP
+
+:dtp_set_colour
+  SET PUSH, A
+
+  ; read colour into A
+  ADD J, 1
+  SET A, [J]
+
+  ; shift so it can be XORed with the character
+  ;SHL A, 8
+
+  ; store in [colour]
+  SET [colour], A
+
+  SET A, POP
+  SET PC, POP
+
+:dtp_clear_screen
+  SET PUSH, B
+
+  ; clear screen
+  SET B, [colour]
+  JSR render_clear_screen
+
+  ; reset cursor
+  SET [cursor_x], 0
+  SET [cursor_y], 0
+
+  SET B, POP
+  SET PC, POP
+
+; X position of cursor
+:cursor_x
+  DAT 0
+
+; Y position of cursor
+:cursor_y
+  DAT 0
+
+; Current colour
+:colour
+  DAT 0
+
+; hardcoded session id (ssssh....)
+:session_id
+  DAT 0xbeef
+
+; buffer for reading from and writing to the modem
+:modem_buffer
+  DAT 0
