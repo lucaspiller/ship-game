@@ -210,7 +210,7 @@ SET PC, initialisation
 :main_loop
   ; send ClientHello
   SET [modem_buffer + 0], [session_id] ; session id
-  SET [modem_buffer + 1], 0x3e02       ; protocol + length
+  SET [modem_buffer + 1], 0x3e04       ; protocol + length
   SET [modem_buffer + 2], 0x5001       ; command + length
   SET [modem_buffer + 3], 0x200C       ; width + height
 
@@ -240,7 +240,7 @@ SET PC, initialisation
 
   ; send KeyboardInput
   SET [modem_buffer + 0], [session_id] ; session id
-  SET [modem_buffer + 1], 0x3e02       ; protocol + length
+  SET [modem_buffer + 1], 0x3e04       ; protocol + length
   SET [modem_buffer + 2], 0x4801       ; command + length
   SET [modem_buffer + 3], C            ; 0x00 + code
 
@@ -258,30 +258,55 @@ SET PC, initialisation
   HWI [modem_port]
   ; B contains number of bytes read
 
+  ; J is a pointer to the current location in the buffer
+  SET J, modem_buffer
+
+  ; B is a pointer to the end of the buffer
+  ADD B, modem_buffer
+
+:read_modem_loop
   ; check session id, and return if invalid
-  IFN [modem_buffer + 0], [session_id]
+  IFN [J + 0], [session_id]
   SET PC, POP
 
   ; check protocol and return if invalid
-  SET I, [modem_buffer + 1]
+  SET I, [J + 1]
   AND I, 0xff00
   IFN I, 0x3e00
   SET PC, POP
 
   ; read packet length into I
-  SET I, [modem_buffer + 1]
+  SET I, [J + 1]
   AND I, 0x00ff
 
+  ; decode
+  JSR dtp_decode
+
+  ; add packet to buffer pointer, J now points to the next packet (if any)
+  ADD J, I
+
+  ; if J == B then we have reached the end of the data
+  IFE J, B
+  SET PC, POP
+
+  ; otherwise decode the next packet :D
+  SET PC, read_modem_loop
+
+:dtp_decode
+  SET PUSH, B
+  SET PUSH, I
+  SET PUSH, J
+
   ; add buffer position so: I = modem_buffer + packet length
-  ADD I, modem_buffer
+  ADD I, J
 
   ; pointer to current byte in buffer
-  SET J, modem_buffer + 2
+  ADD J, 2
 
-:read_loop
+:dtp_decode_loop
   ; return once we've read the entire packet
   IFE I, J
-  SET PC, POP
+  SET PC, dtp_decode_end
 
   ; read command into C
   SET C, [J]
@@ -320,7 +345,13 @@ SET PC, initialisation
 
   ; increment buffer
   ADD J, 1
-  SET PC, read_loop
+  SET PC, dtp_decode_loop
+
+:dtp_decode_end
+  SET J, POP
+  SET I, POP
+  SET B, POP
+  SET PC, POP
 
 :dtp_server_hello
   ; reset colour and clear screen
@@ -439,9 +470,6 @@ SET PC, initialisation
   ; read colour into A
   ADD J, 1
   SET A, [J]
-
-  ; shift so it can be XORed with the character
-  ;SHL A, 8
 
   ; store in [colour]
   SET [colour], A

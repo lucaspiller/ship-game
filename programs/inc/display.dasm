@@ -1,4 +1,5 @@
 .define DISPLAY_MAP 0x8000
+.define DISPLAY_MAP_END 0x8180
 
 ; Map display to memory 0x8000 - 0x8180
 :display_init
@@ -64,32 +65,24 @@
 ; Clears the screen
 ;   B - Colour
 :render_clear_screen
-  SET PUSH, Y
+  SET PUSH, A
+  SET PUSH, C
 
-  SET Y, 0
-  JSR render_clear_line
-  SET Y, 1
-  JSR render_clear_line
-  SET Y, 2
-  JSR render_clear_line
-  SET Y, 3
-  JSR render_clear_line
-  SET Y, 4
-  JSR render_clear_line
-  SET Y, 5
-  JSR render_clear_line
-  SET Y, 6
-  JSR render_clear_line
-  SET Y, 7
-  JSR render_clear_line
-  SET Y, 8
-  JSR render_clear_line
-  SET Y, 9
-  JSR render_clear_line
-  SET Y, 10
-  JSR render_clear_line
-  SET Y, 11
-  JSR render_clear_line
+  ; generate character to render in C
+  SET C, B
+  XOR C, 0x20
 
-  SET Y, POP
+  ; A is the memory location we are writing to
+  SET A, DISPLAY_MAP
+
+:render_clear_screen_loop
+  ; write character
+  SET [A], C
+  ADD A, 1
+
+  IFL A, DISPLAY_MAP_END
+  SET PC, render_clear_screen_loop
+
+  SET C, POP
+  SET A, POP
   SET PC, POP
