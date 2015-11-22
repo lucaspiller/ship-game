@@ -1,3 +1,107 @@
+;
+; Broadcast Information Protocol
+; ==============================
+;
+; Introduction
+; ------------
+;
+; The Broadcast Information Protocol (BIP) is designed to provide a standard
+; means of broadcasting public data over a radio link. It is designed to operate
+; over a low speed link with no packet loss.
+;
+; Automated messages may be repeated regularly, it is up to the client
+; application whether to display these to pilots again or not.
+;
+; Unless otherwise noted, the protocol operates as standard on channel 1.
+;
+; Packet structure
+; ----------------
+;
+;  0      7 8     15 16    23 24    31
+; +--------+--------+--------+--------+
+; |Protocol| Length | Type   |Reserved|
+; +--------+--------+--------+--------+
+; |      Data...
+; +-----------------...
+;
+; Protocol is a required field and should always be 0x15.
+;
+; Length is the length in words of the packet (data and headers).
+;
+; Type is the type of packet.
+;
+; Reserved is reserved for future use, but currently should always be 0x00.
+;
+; Data is a variable length field, consisting of the data for the specific type
+; of packet. The total length of the packet should be no more than 64 words, so
+; the data part should be limited to 61 words.
+;
+; Packet Types
+; ------------
+;
+; 0x01 - Emergency message
+; 0x02 - Distress message
+; 0x03 - Public chat message
+;
+; Text encoding
+; -------------
+;
+; Text should be encoded in 8-bit ASCII format, with two characters per word.
+;
+; All strings which are fixed length (i.e. don't have a length field) should be
+; padded with the null character (0x00). All variable length strings should
+; contain a length identifier or be terminated with the null character (0x00).
+;
+; All strings should be padded by the null character until a word boundary is
+; reached.
+;
+; Emergency broadcast
+; -------------------
+;
+; An emergency broadcast consisting of a text string emergency message. This is
+; intended as an emergency notice to all ships within the area, it is not for
+; distress signals.
+;
+; This message type is restricted in all systems and should only be broadcast by
+; authorised personel.
+;
+; Example:
+;
+; "SOLAR FLARE IMMINENT. CLASS M3. ETA 300 SECONDS."
+;
+; Distress broadcast
+; ------------------
+;
+; A distress broadcast consisting of a text string distress message. The distress
+; message is for a ship in distress to seek assistance, whether life threatening
+; or not.
+;
+; Making a false distress call is a punishable crime in most systems.
+;
+; Example:
+;
+; "MAYDAY. ABANDONING SHIP. REACTOR EXPLOSION IMMINENT. KEEP CLEAR."
+;
+; Chat Message
+; ------------
+;
+; Public broadcast messages allow pilots to communicate with each other within a
+; local area.
+;
+; The data part consists of two fields seperated by the null character (0x00).
+; The first is the pilot's identifier and the second is the message.
+;
+; Although the protocol allows the data part to be to be longer, it is
+; recommended to limit the identifier to 20 characters, and the message to 60
+; characters so that they can displayed better on small screens.
+;
+; Example data:
+;
+; 0x4a6f 0x686e 0x6e79 0x0048 0x6920 0x6775 0x7973 0x2100
+;
+; Identifier: "Johnny"
+; Message:    "Hi guys!"
+
 .define KEYBOARD_INTERRUPT 0x4801
 .define MODEM_INTERRUPT    0x1804
 
@@ -5,6 +109,7 @@ SET PC, initialisation
 
 .include inc/hardware_detection
 .include inc/display
+.include inc/string
 
 ;;; Initialisation ;;;
 
@@ -19,13 +124,119 @@ SET PC, initialisation
   SET B, KEYBOARD_INTERRUPT
   HWI [keyboard_port]
 
-  ; tell modem to send and receive on 0x10
+  ; setup interrupts
+  IAS setup_interrupt_handler
+
+  ; draw prompt
+  SET X, 0
+  SET Y, 0
+  SET A, setup_prompt
+  SET B, 0xF000
+  JSR render_str_xy
+
+  SUB PC, 1
+
+:setup_interrupt_handler
+  IFE A, KEYBOARD_INTERRUPT
+  JSR setup_read_keyboard
+
+  ; disable interrupt queueing and return
+  RFI 0
+
+:setup_read_keyboard
+  ; read character read into C
+  SET A, 1
+  HWI [keyboard_port]
+
+  ; add to buffer if ASCII
+  IFG C, 0x1F
+  IFL C, 0x7f
+  SET PC, setup_add_to_buffer
+
+  ; end setup on enter
+  IFE C, 0x11
+  SET PC, setup_end
+
+  ; delete on backspace
+  IFE C, 0x10
+  SET PC, setup_delete
+
+  ; otherwise ignore it
+  ; return to IA handler
+  SET PC, POP
+
+:setup_add_to_buffer
+  ; ignore if too long (>= 20 chars)
+  SET X, [identifier_index]
+  IFG X, 19
+  SET PC, POP
+
+  SET A, identifier
+  ADD A, X
+  SET [A], C
+
+  ; render to screen
+  SET Y, 1
+  SET B, 0xF000
+  JSR render_char_xy
+
+  ; increment buffer index
+  ADD X, 1
+  SET [identifier_index], X
+
+  ; return to IA handler
+  SET PC, POP
+
+:setup_delete
+  ; don't underflow
+  IFL [identifier_index], 1
+  SET PC, POP
+
+  ; decrement buffer index
+  SET X, [identifier_index]
+  SUB X, 1
+
+  ; clear screen
+  SET Y, 1
+  SET B, 0xF000
+  SET C, 0x20
+  JSR render_char_xy
+
+  ; save buffer index
+  SET [identifier_index], X
+
+  ; return to IA handler
+  SET PC, POP
+
+:setup_end
+  ; add terminator
+  SET X, identifier
+  ADD X, [identifier_index]
+  SET [X], 0x0
+
+  ; clear screen
+  SET B, 0xF000
+  JSR render_clear_screen
+
+  ; disable interrupt queueing
+  IAQ 0
+
+  ; clear stack
+  SET SP, 0xffff
+
+  ; go to main initialisation
+  SET PC, main_initialisation
+
+;;; Main Chat
+
+:main_initialisation
+  ; tell modem to send and receive on 0x01
   SET A, 2
-  SET B, 0x10
+  SET B, 0x01
   HWI [modem_port]
 
   SET A, 3
-  SET B, 0x10
+  SET B, 0x01
   HWI [modem_port]
 
   ; enable modem interrupts
@@ -34,9 +245,8 @@ SET PC, initialisation
   HWI [modem_port]
 
   ; setup interrupts
-  IAS interrupt_handler
+  IAS main_interrupt_handler
 
-:main_loop
   ; clear input line of screen
   SET Y, 11
   SET B, 0xFF00
@@ -44,9 +254,7 @@ SET PC, initialisation
 
   SUB PC, 1
 
-;;; Interrupt handling
-
-:interrupt_handler
+:main_interrupt_handler
   IFE A, KEYBOARD_INTERRUPT
   JSR read_keyboard
 
@@ -57,7 +265,6 @@ SET PC, initialisation
   RFI 0
 
 :read_keyboard
-
   ; read character read into C
   SET A, 1
   HWI [keyboard_port]
@@ -102,6 +309,10 @@ SET PC, initialisation
   SET PC, POP
 
 :delete
+  ; don't underflow
+  IFL [message_buffer_index], 1
+  SET PC, POP
+
   ; decrement buffer index
   SET X, [message_buffer_index]
   SUB X, 1
@@ -119,16 +330,38 @@ SET PC, initialisation
   SET PC, POP
 
 :transmit
+  ; don't transmit an empty message
+  IFL [message_buffer_index], 1
+  SET PC, POP
+
   ; add terminator
   SET A, [message_buffer_index]
   ADD A, message_buffer
   SET [A], 0x0
 
+  ; construct packet type 0x03
+  SET [modem_buffer + 0], 0x1500       ; protocol + length (0 for now)
+  SET [modem_buffer + 1], 0x0300       ; type + reserved
+
+  ; B is a pointer to the current position in the packet
+  SET B, modem_buffer + 2
+
+  ; add the identifier
+  SET A, identifier
+  JSR str_pack8
+  ADD B, 1
+
+  ; add the message
+  SET A, message_buffer
+  JSR str_pack8
+
+  ; set B to packet length, and add to packet
+  SUB B, modem_buffer - 1
+  XOR [modem_buffer], B
+
   ; send to modem
   SET A, 4
-  SET B, [message_buffer_index]
-  ADD B, 1
-  SET C, message_buffer
+  SET C, modem_buffer
   HWI [modem_port]
 
   ; clear input line of screen
@@ -143,9 +376,77 @@ SET PC, initialisation
   SET PC, POP
 
 :read_modem
-  SET A, 5
-  SET C, modem_buffer
+  SET A, 5             ; read
+  SET C, modem_buffer  ; data
   HWI [modem_port]
+  ; B contains number of bytes read
+
+  ; J is a pointer to the current location in the buffer
+  SET J, modem_buffer
+
+  ; B is a pointer to the end of the buffer
+  ADD B, modem_buffer
+
+:read_modem_loop
+  ; check protocol and return if invalid
+  SET I, [J + 0]
+  AND I, 0xff00
+  IFN I, 0x1500
+  SET PC, POP
+
+  ; read packet length into I
+  SET I, [J + 0]
+  AND I, 0x00ff
+
+  ; decode
+  JSR decode
+
+  ; add packet to buffer pointer, J now points to the next packet (if any)
+  ADD J, I
+
+  ; if J == B then we have reached the end of the data
+  IFE J, B
+  SET PC, POP
+
+  ; otherwise decode the next packet :D
+  SET PC, read_modem_loop
+
+:decode
+  SET PUSH, J
+
+  ; pointer to current byte in buffer
+  ADD J, 1
+
+  ; read type into C
+  SET C, [J]
+  AND C, 0xff00
+  SHR C, 8
+
+  ; EmergencyMessage
+  IFE C, 0x01
+  JSR decode_emergency_message
+
+  ; DistressMessage
+  IFE C, 0x02
+  JSR decode_distress_message
+
+  ; ChatMessage
+  IFE C, 0x03
+  JSR decode_chat_message
+
+  ; return and decode the next packet
+  SET J, POP
+  SET PC, POP
+
+:decode_emergency_message
+  SET PUSH, B
+  SET PUSH, C
+
+  ; decode Message into ModemBuffer
+  ADD J, 1
+  SET A, J
+  SET B, message_buffer
+  JSR str_unpack8
 
   ; clear line
   SET Y, [line]
@@ -153,41 +454,267 @@ SET PC, initialisation
   JSR render_clear_line
 
   ; print to screen
-  SET I, modem_buffer
-  SET B, 0xF000
+  SET A, message_buffer
+  SET B, 0x4000
   SET X, 0
+  JSR render_str_xy
 
-:read_loop
-  ; check for terminator
-  SET C, [I]
-  IFE C, 0x0
-  SET PC, read_end_loop
-
-  ; otherwise render
-  JSR render_char_xy
-
-  ADD X, 1
-  ADD I, 1
-  SET PC, read_loop
-
-:read_end_loop
-  ; increment line number
+  ; save line
   ADD Y, 1
-  IFE Y, 11
+  IFG Y, 10
   SET Y, 0
   SET [line], Y
 
-  ; return to IA handler
+  ; return
+  SET C, POP
+  SET B, POP
   SET PC, POP
 
-:message_buffer_index
-  DAT 0
+:decode_distress_message
+  SET PUSH, B
+  SET PUSH, C
+
+  ; decode Message into ModemBuffer
+  ADD J, 1
+  SET A, J
+  SET B, message_buffer
+  JSR str_unpack8
+
+  ; clear line
+  SET Y, [line]
+  SET B, 0xF000
+  JSR render_clear_line
+
+  ; print to screen
+  SET A, message_buffer
+  SET B, 0x6000
+  SET X, 0
+  JSR render_str_xy
+
+  ; save line
+  ADD Y, 1
+  IFG Y, 10
+  SET Y, 0
+  SET [line], Y
+
+  ; return
+  SET C, POP
+  SET B, POP
+  SET PC, POP
+
+:decode_chat_message
+  SET PUSH, B
+  SET PUSH, C
+
+  ; decode Identifier into ModemBuffer
+  ADD J, 1
+  SET A, J
+  SET B, message_buffer
+  JSR str_unpack8
+
+  ; increment J
+  ADD J, C
+  ADD J, 1
+
+  ; clear line
+  SET Y, [line]
+  SET B, 0xF000
+  JSR render_clear_line
+
+  ; print to screen
+  SET A, message_buffer
+  SET B, 0xB000
+  SET X, 0
+  JSR render_str_xy
+
+  ; decode Message into MessageBuffer
+  SET A, J
+  SET B, message_buffer
+  JSR str_unpack8
+
+  ; print to screen
+  SET A, message_buffer
+  SET B, 0xF000
+  ADD X, 1
+  JSR render_str_xy
+
+  ; save line
+  ADD Y, 1
+  IFG Y, 10
+  SET Y, 0
+  SET [line], Y
+
+  ; return
+  SET C, POP
+  SET B, POP
+  SET PC, POP
 
 :line
   DAT 0
 
+:setup_prompt
+  DAT "Name?", 0x0
+
+:identifier_index
+  DAT 0
+
+:message_buffer_index
+  DAT 0
+
+:identifier
+  ; 21 words
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+
 :message_buffer
-  DAT "                                  "
+  ; 64 words
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
 
 :modem_buffer
-  DAT "                                  "
+  ; 64 words
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00
+  DAT 0x00

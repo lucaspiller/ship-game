@@ -38,6 +38,49 @@
   SET A, POP
   SET PC, POP
 
+; Render a string to the screen (by coordinates)
+;   X - X location (0 index)
+;   Y - Y location (0 index)
+;   A - Null terminated string
+;   B - Colour
+:render_str_xy
+  SET PUSH, C
+
+:render_str_xy_loop
+  SET C, [A]
+
+  ; check for terminator
+  IFE C, 0x0
+  SET PC, render_str_xy_end
+
+  ; render
+  JSR render_char_xy
+
+  ; increment cursor
+  ADD X, 1
+
+  ; check for wrapping
+  IFE X, 32
+  JSR render_wrap_cursor
+
+  ADD A, 1
+  SET PC, render_str_xy_loop
+
+:render_str_xy_end
+  SET C, POP
+  SET PC, POP
+
+; wraps the cursor to the next line if X == 32
+:render_wrap_cursor
+  SET X, 0
+  ADD Y, 1
+
+  ; set to 0 if Y >= 13
+  IFG Y, 11
+  SET Y, 0
+
+  SET PC, POP
+
 ; Clears a line of the screen
 ;   Y - Y location (0 index)
 ;   B - Colour

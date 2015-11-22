@@ -1,0 +1,42 @@
+; Packs the null terminated string at A into B.
+; B will be padded by null characters to reach a word boundary.
+; Sets C to the number of words written to B
+;   A - Source memory location
+;   B - Destination memory location
+:str_pack8
+  SET C, 0
+
+:str_pack8_loop
+  SET [B], [A]
+
+  IFE [A], 0x0
+  SET PC, str_pack8_loop_end
+
+  ADD A, 1
+  ADD B, 1
+  ADD C, 1
+  SET PC, str_pack8_loop
+
+:str_pack8_loop_end
+  SET PC, POP
+
+; Unpacks the null terminated string at A into B.
+; Sets C to the number of words written to B
+;   A - Source memory location
+;   B - Destination memory location
+:str_unpack8
+  SET C, 0
+
+:str_unpack8_loop
+  SET [B], [A]
+
+  IFE [A], 0x0
+  SET PC, str_pack8_loop_end
+
+  ADD A, 1
+  ADD B, 1
+  ADD C, 1
+  SET PC, str_unpack8_loop
+
+:str_unpack8_loop_end
+  SET PC, POP
