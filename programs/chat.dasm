@@ -239,6 +239,14 @@ SET PC, initialisation
   SET B, 0x01
   HWI [modem_port]
 
+  ; set modem filter
+  SET A, 1
+  SET B, 0xFF00
+  SET C, 0x0000
+  SET X, 0x1500
+  SET Y, 0x0000
+  HWI [modem_port]
+
   ; enable modem interrupts
   SET A, 6
   SET B, MODEM_INTERRUPT
@@ -349,14 +357,13 @@ SET PC, initialisation
   ; add the identifier
   SET A, identifier
   JSR str_pack8
-  ADD B, 1
 
   ; add the message
   SET A, message_buffer
   JSR str_pack8
 
   ; set B to packet length, and add to packet
-  SUB B, modem_buffer - 1
+  SUB B, modem_buffer
   XOR [modem_buffer], B
 
   ; send to modem
@@ -513,8 +520,7 @@ SET PC, initialisation
   JSR str_unpack8
 
   ; increment J
-  ADD J, C
-  ADD J, 1
+  SET J, A
 
   ; clear line
   SET Y, [line]
