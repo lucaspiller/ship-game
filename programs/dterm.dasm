@@ -9,21 +9,24 @@
 ; interfacing with terminal devices over a radio link. It is designed to
 ; operate over low speed, high latency links with no packet loss.
 ;
+; No encryption is provided, if required this protocol should be wrapped in
+; another which provides that security.
+;
 ; Packet structure
 ; ----------------
 ;
 ;    0      7 8     15 16    23 24    31
 ;   +--------+--------+--------+--------+
-;   |    Session ID   |Protocol|Length  |
+;   |Protocol| Length |    Session ID   |
 ;   +--------+--------+--------+--------+
 ;   | Command List...
 ;   +-----------------...
 ;
-; Session ID is a randomly generated identifier for the current session.
-;
 ; Protocol is a required field and should always be 0x3E.
 ;
 ; Length is the length in words of the packet (command list and header).
+;
+; Session ID is a randomly generated identifier for the current session.
 ;
 ; Command List structure
 ; ----------------------
@@ -194,9 +197,9 @@ SET PC, initialisation
   SET B, 0x10
   HWI [modem_port]
 
-  ; tell modem to receive on 0x11
+  ; tell modem to receive on 0x10
   SET A, 3
-  SET B, 0x11
+  SET B, 0x10
   HWI [modem_port]
 
   ; enable modem interrupts
@@ -209,8 +212,8 @@ SET PC, initialisation
 
 :main_loop
   ; send ClientHello
-  SET [modem_buffer + 0], [session_id] ; session id
-  SET [modem_buffer + 1], 0x3e04       ; protocol + length
+  SET [modem_buffer + 0], 0x3e04       ; protocol + length
+  SET [modem_buffer + 1], [session_id] ; session id
   SET [modem_buffer + 2], 0x5001       ; command + length
   SET [modem_buffer + 3], 0x200C       ; width + height
 
@@ -239,8 +242,8 @@ SET PC, initialisation
   HWI [keyboard_port]
 
   ; send KeyboardInput
-  SET [modem_buffer + 0], [session_id] ; session id
-  SET [modem_buffer + 1], 0x3e04       ; protocol + length
+  SET [modem_buffer + 0], 0x3e04       ; protocol + length
+  SET [modem_buffer + 1], [session_id] ; session id
   SET [modem_buffer + 2], 0x4801       ; command + length
   SET [modem_buffer + 3], C            ; 0x00 + code
 
@@ -265,18 +268,18 @@ SET PC, initialisation
   ADD B, modem_buffer
 
 :read_modem_loop
-  ; check session id, and return if invalid
-  IFN [J + 0], [session_id]
-  SET PC, POP
-
   ; check protocol and return if invalid
-  SET I, [J + 1]
+  SET I, [J + 0]
   AND I, 0xff00
   IFN I, 0x3e00
   SET PC, POP
 
+  ; check session id, and return if invalid
+  IFN [J + 1], [session_id]
+  SET PC, POP
+
   ; read packet length into I
-  SET I, [J + 1]
+  SET I, [J + 0]
   AND I, 0x00ff
 
   ; decode
