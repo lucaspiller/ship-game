@@ -2,6 +2,7 @@ import Emulator from './dcpu/emulator'
 import Debugger from './dcpu/debugger'
 import Thrusters from './dcpu/thrusters'
 import Monitor from './dcpu/lem1802'
+import Keyboard from './dcpu/keyboard'
 import InertialNavigation from './dcpu/inertial_navigation'
 import BytecodeLoader from './dcpu/bytecode_loader'
 import Modem from './dcpu/modem'
@@ -21,6 +22,9 @@ export default class Main {
 
       let monitor = new Monitor(this.emulator, this.buildMonitorCanvas())
       this.emulator.devices.push(monitor)
+
+      let keyboard = new Keyboard(this.emulator)
+      this.emulator.devices.push(keyboard)
 
       let nav = new InertialNavigation(this.emulator, ship)
       this.emulator.devices.push(nav)
