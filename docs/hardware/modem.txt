@@ -26,9 +26,10 @@ receiving data is written to the TX buffer.
 When a HWI is received by the modem, it reads the A register and does one of
 the following actions:
 
-  0 - Read state. Sets B to the current state (see below).
+  0 - Read serial number. Reads the 48bit unique serial number into A, B and C.
 
-  1 - Set mode. Sets the mode to B (see below).
+  1 - Set RX filter. Sets mask to the 32bit value described by B and C, sets
+      comparison to the 32bit value described by X and Y. See below.
 
   2 - Set TX channel. Sets the TX channel to the low byte of B. If B is 0x00
       transmission will be disabled.
@@ -58,6 +59,38 @@ disabled).
 
 The modem operates in the S band, with a channel width of 5 Mhz. All channels
 are currently unlicensed and free for civilian use.
+
+---[ Filter ]------------------------------------------------------------------
+
+An RX filter can be set so that only certain packets are received. If a
+incoming packet does not match the filter it will not be added to the buffer,
+and no interrupt will be triggered.
+
+The RX filter works on the first two words of the packet. It can be set by
+calling operation 7. By default no filter is active.
+
+Given a packet is received as follows:
+
+  0x3412 0x8391 0x2010 0x2010 0x1230
+
+First we apply the mask to the first two words:
+
+  0x3412 0x8391
+  0xFF00 0x000F AND
+  -------------
+  0x3400 0x0001
+
+Then we compare it to comparison:
+
+  0x3400 0x0001
+  0x3400 0x0001 XOR
+  -------------
+  0x0000 0x0000
+
+If the result is 0, the packet is allowed through, otherwise it is ignored.
+
+By default the mask is set to 0x0 and comparison to 0x0, so all packets
+will be allowed through.
 
 ========== END SPECIFICATION ==================================================
 

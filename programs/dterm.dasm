@@ -26,7 +26,7 @@
 ;
 ; Length is the length in words of the packet (command list and header).
 ;
-; Session ID is a randomly generated identifier for the current session.
+; Session ID is a random identifier for the current session.
 ;
 ; Command List structure
 ; ----------------------
@@ -59,7 +59,7 @@
 ;     ClientBye   ---------->
 ;                 <---------- ServerBye
 ;
-; Each lifecycle must use a new Session ID.
+; Each lifecycle should use a new Session ID.
 ;
 ; Commands
 ; --------
@@ -192,14 +192,24 @@ SET PC, initialisation
   SET B, KEYBOARD_INTERRUPT
   HWI [keyboard_port]
 
-  ; tell modem to send on 0x10
+  ; tell modem to send and recieve on 0x10
   SET A, 2
   SET B, 0x10
   HWI [modem_port]
-
-  ; tell modem to receive on 0x10
   SET A, 3
-  SET B, 0x10
+  HWI [modem_port]
+
+  ; read modem serial number into session_id
+  SET A, 0
+  HWI [modem_port]
+  SET [session_id], A
+
+  ; set modem filter
+  SET A, 1
+  SET B, 0xFF00
+  SET C, 0xFFFF
+  SET X, 0x3E00
+  SET Y, [session_id]
   HWI [modem_port]
 
   ; enable modem interrupts
@@ -438,7 +448,7 @@ SET PC, initialisation
   SET B, POP
   SET PC, POP
 
-; wraps the cursor to the next line if X == 13
+; wraps the cursor to the next line if X == 32
 :wrap_cursor
   SET X, 0
   ADD Y, 1
@@ -506,10 +516,10 @@ SET PC, initialisation
 :colour
   DAT 0
 
-; hardcoded session id (ssssh....)
+; Session ID (on initialisation set to the modem serial number)
 :session_id
-  DAT 0xbeef
+  DAT 0
 
-; buffer for reading from and writing to the modem
+; Buffer for reading from and writing to the modem
 :modem_buffer
   DAT 0

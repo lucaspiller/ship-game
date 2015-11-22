@@ -11,6 +11,11 @@ export default class Modem {
   }
 
   init() {
+    this.mask       = 0
+    this.comparison = 0
+
+    this.generateSerialNumber();
+
     this.rxChannel = 0
     this.txChannel = 0
 
@@ -29,10 +34,17 @@ export default class Modem {
     let code = this.emulator.Registers.A.get()
     switch (code) {
       case 0:
-        // TODO
+        this.emulator.Registers.A.set(this.serialNumberA);
+        this.emulator.Registers.B.set(this.serialNumberB);
+        this.emulator.Registers.C.set(this.serialNumberC);
         break
       case 1:
-        // TODO
+        this.setFilter(
+          this.emulator.Registers.B.get(),
+          this.emulator.Registers.C.get(),
+          this.emulator.Registers.X.get(),
+          this.emulator.Registers.Y.get()
+        )
         break
       case 2:
         this.setTxChannel(
@@ -62,6 +74,19 @@ export default class Modem {
         )
         break
     }
+  }
+
+  generateSerialNumber() {
+    // As well as avoiding bit operations, JavaScript also can't generate a
+    // random number more than 32 bits \o/
+    this.serialNumberA = Math.floor(Math.random() * Math.pow(2, 16) - 1);
+    this.serialNumberB = Math.floor(Math.random() * Math.pow(2, 16) - 1);
+    this.serialNumberC = Math.floor(Math.random() * Math.pow(2, 16) - 1);
+  }
+
+  setFilter(maskHigh, maskLow, comparisonHigh, comparisonLow) {
+    this.mask       = (maskHigh << 16) ^ maskLow;
+    this.comparison = (comparisonHigh << 16) ^ comparisonLow;
   }
 
   setTxChannel(channel) {
@@ -119,10 +144,20 @@ export default class Modem {
 
   receive(channel, data) {
     if (this.rxChannel == channel) {
+
+      // check filter
+      let filterPart = (data[0] << 16) ^ data[1];
+      if ((filterPart & this.mask) != this.comparison) {
+        console.log('ignoring ', data);
+        return;
+      }
+
+      // add to rx buffer
       for (var i = 0; i < data.length; i++) {
         this.rxBuffer.push(data[i]);
       }
 
+      // trigger interrupt
       if (this.rxInterruptMessage) {
         this.emulator.interrupt(this.rxInterruptMessage);
       }
