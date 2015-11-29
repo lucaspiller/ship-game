@@ -32,11 +32,16 @@ High octet:
 0x0f - Fire bow thrusters (go backward)
 0x00 - Stop thrusters (ship will continue at current velocity)
 
+The first four bits set the power to go forward, and the lower four bits set
+the power to go backward.
+
 Low octet:
 
 0xf0 - Yaw the ship anti-clockwise
 0x0f - Yaw the ship clockwise
 0x00 - Stop yaw
+
+Yaw thrusters are either on or off - the power cannot be changed.
 
 One state can be set in each group, for example:
 

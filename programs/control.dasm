@@ -149,9 +149,10 @@ SET PC, initialisation
   ; forward / reverse
   SET A, [throttle]
   IFG A, 8
-  SET B, 0xf000
+  JSR update_thrusters_forward
   IFL A, 8
-  SET B, 0x0f00
+  JSR update_thrusters_reverse
+  SHL B, 8
 
   ; left / right
   SET A, [rotate]
@@ -167,6 +168,42 @@ SET PC, initialisation
 
   ; done
   SET C, POP
+  SET PC, POP
+
+:update_thrusters_forward
+  IFE A, 9
+  SET B, 0x20
+  IFE A, 0xA
+  SET B, 0x40
+  IFE A, 0xB
+  SET B, 0x60
+  IFE A, 0xC
+  SET B, 0x80
+  IFE A, 0xD
+  SET B, 0xA0
+  IFE A, 0xE
+  SET B, 0xC0
+  IFE A, 0xF
+  SET B, 0xF0
+  SET PC, POP
+
+:update_thrusters_reverse
+  IFE A, 0
+  SET B, 0x0F
+  IFE A, 1
+  SET B, 0x0E
+  IFE A, 2
+  SET B, 0x0C
+  IFE A, 3
+  SET B, 0x0A
+  IFE A, 4
+  SET B, 0x08
+  IFE A, 5
+  SET B, 0x06
+  IFE A, 6
+  SET B, 0x04
+  IFE A, 7
+  SET B, 0x02
   SET PC, POP
 
 ;;; Render interface
@@ -257,7 +294,6 @@ SET PC, initialisation
   JSR render_char_xy
   SET X, 8
   JSR render_char_xy
-
 
   ; right
   SET B, 0xF000

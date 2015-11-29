@@ -345,8 +345,8 @@
     Star.prototype.render = function(ctx, viewpoint, MULT) {
       var alpha, x, y;
       ctx.save();
-      x = this.position.x - (viewpoint.position.x / ((this.z * 100) + 5));
-      y = this.position.y - (viewpoint.position.y / ((this.z * 100) + 5));
+      x = this.position.x - (viewpoint.position.x / (this.z + 1));
+      y = this.position.y - (viewpoint.position.y / (this.z + 1));
       x -= Math.floor(x / (viewpoint.width * MULT)) * (viewpoint.width * MULT);
       y -= Math.floor(y / (viewpoint.height * MULT)) * (viewpoint.height * MULT);
       if (y > viewpoint.height) {
@@ -665,8 +665,8 @@
       options.layer = 2;
       options.velocity = Vector._new(0, 0);
       this.energy = options.energy || this.maxEnergy;
-      this.max_speed = 300 / 120;
-      this.max_accel = 100 / 8640;
+      this.max_speed = 2;
+      this.max_accel = 0.005;
       this.trailDelay = 0;
       Ship.__super__.constructor.call(this, options);
     }
@@ -692,12 +692,16 @@
       return ctx.stroke();
     };
 
-    Ship.prototype.forward = function() {
-      return this.thrust(Vector.times(Vector._new(this.rotation), this.max_accel));
+    Ship.prototype.forward = function(power) {
+      var accel;
+      accel = (this.max_accel / 16) * power;
+      return this.thrust(Vector.plus(this.acceleration, Vector.times(Vector._new(this.rotation), accel)));
     };
 
-    Ship.prototype.backward = function() {
-      return this.thrust(Vector.times(Vector._new(this.rotation), -this.max_accel));
+    Ship.prototype.backward = function(power) {
+      var accel;
+      accel = (this.max_accel / 16) * power;
+      return this.thrust(Vector.minus(this.acceleration, Vector.times(Vector._new(this.rotation), accel)));
     };
 
     Ship.prototype.thrust = function(accel) {
@@ -741,6 +745,7 @@
           this.velocity = Vector.times(newVelocity, this.max_speed / Vector._length(newVelocity));
         }
         this.position = Vector.plus(this.position, this.velocity);
+        this.acceleration = Vector.times(this.acceleration, 0.8);
         this.rotation += this.rotationalVelocity;
         this.rotation = this.rotation % (Math.PI * 2);
       }
@@ -749,9 +754,9 @@
 
     Ship.prototype.rotate = function(dir) {
       if (dir > 0 && this.rotationalVelocity <= 0) {
-        this.rotationalVelocity += (Math.PI / 64) * Math.abs(dir);
+        this.rotationalVelocity += (Math.PI / 128) * Math.abs(dir);
       } else if (dir < 0 && this.rotationalVelocity >= 0) {
-        this.rotationalVelocity -= (Math.PI / 64) * Math.abs(dir);
+        this.rotationalVelocity -= (Math.PI / 128) * Math.abs(dir);
       } else if (dir === 0) {
         this.rotationalVelocity = 0;
       }

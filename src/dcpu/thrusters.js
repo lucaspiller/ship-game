@@ -23,13 +23,15 @@ export default class Thrusters {
   }
 
   step() {
-    switch (this.state >>> 8) {
-      case 0x0f:
-        this.ship.backward()
-        break
-      case 0xf0:
-        this.ship.forward()
-        break
+    let forwardReverse = (this.state >>> 8)
+    if (forwardReverse > 0x0f) {
+      let power = (forwardReverse & 0xf0) >>> 4
+      console.log('forward', forwardReverse.toString(16), power)
+      this.ship.forward(power)
+    } else if (forwardReverse > 0) {
+      let power = forwardReverse & 0x0f
+      console.log('backward',forwardReverse.toString(16), power)
+      this.ship.backward(power)
     }
 
     switch (this.state & 0xff) {

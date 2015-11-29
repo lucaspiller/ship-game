@@ -220,8 +220,8 @@ class Star
   render: (ctx, viewpoint, MULT) ->
     ctx.save()
 
-    x = @position.x - (viewpoint.position.x / ((@z * 100) + 5))
-    y = @position.y - (viewpoint.position.y / ((@z * 100) + 5))
+    x = @position.x - (viewpoint.position.x / (@z + 1))
+    y = @position.y - (viewpoint.position.y / (@z + 1))
 
     # wrap stars
     x -= Math.floor(x / (viewpoint.width * MULT)) * (viewpoint.width * MULT)
@@ -453,8 +453,8 @@ class Ship extends Mass
     options.layer = 2
     options.velocity = Vector._new(0, 0)
     @energy = options.energy or @maxEnergy
-    @max_speed = 300 / 120
-    @max_accel = 100 / 8640 # magic number?
+    @max_speed = 2
+    @max_accel = 0.005
     @trailDelay = 0
     super options
 
@@ -479,11 +479,13 @@ class Ship extends Mass
     ctx.closePath()
     ctx.stroke()
 
-  forward: ->
-    @thrust Vector.times Vector._new(@rotation), @max_accel
+  forward: (power) ->
+    accel = (@max_accel / 16) * power
+    @thrust Vector.plus @acceleration, Vector.times Vector._new(@rotation), accel
 
-  backward: ->
-    @thrust Vector.times Vector._new(@rotation), -@max_accel
+  backward: (power) ->
+    accel = (@max_accel / 16) * power
+    @thrust Vector.minus @acceleration, Vector.times Vector._new(@rotation), accel
 
   thrust: (accel) ->
     if @trailDelay <= 0
@@ -514,6 +516,7 @@ class Ship extends Mass
         @velocity = Vector.times newVelocity, (@max_speed / Vector._length newVelocity)
 
       @position = Vector.plus @position, @velocity
+      @acceleration = Vector.times @acceleration, 0.8 # drag
       @rotation += @rotationalVelocity
       @rotation = @rotation % (Math.PI * 2)
 
@@ -521,9 +524,9 @@ class Ship extends Mass
 
   rotate: (dir) ->
     if (dir > 0 && @rotationalVelocity <= 0)
-      @rotationalVelocity += (Math.PI / 64) * Math.abs(dir)
+      @rotationalVelocity += (Math.PI / 128) * Math.abs(dir)
     else if (dir < 0 && @rotationalVelocity >= 0)
-      @rotationalVelocity -= (Math.PI / 64) * Math.abs(dir)
+      @rotationalVelocity -= (Math.PI / 128) * Math.abs(dir)
     else if dir == 0
       @rotationalVelocity = 0
     @universe.update this
