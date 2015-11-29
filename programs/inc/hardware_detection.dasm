@@ -34,16 +34,16 @@
   SET PC, POP
 
 :display_port
-  DAT 0
+  DAT 0xffff
 
 :keyboard_port
-  DAT 0
+  DAT 0xffff
 
 :modem_port
-  DAT 0
+  DAT 0xffff
 
 :nav_port
-  DAT 0
+  DAT 0xffff
 
 :thrusters_port
-  DAT 0
+  DAT 0xffff

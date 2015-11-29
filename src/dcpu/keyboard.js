@@ -44,8 +44,10 @@ export default class Keyboard {
   init() {
     this.interruptValue = 0
     this.keyBuffer = []
-    document.body.onkeydown  = this.keyEvent.bind(this)
-    document.body.onkeypress = this.keyEvent.bind(this)
+    this.downKeys  = []
+    document.body.onkeydown  = this.keyPress.bind(this)
+    document.body.onkeypress = this.keyPress.bind(this)
+    document.body.onkeyup    = this.keyRelease.bind(this)
   }
 
   interrupt() {
@@ -61,8 +63,10 @@ export default class Keyboard {
         this.emulator.Registers.C.set(char)
         break
       case 2:
-        // TODO check if key down
-        this.emulator.Registers.C.set(0)
+        // check if key B is down, setting the result in C
+        let key    = this.emulator.Registers.B.get()
+        let result = this.isKeyDown(key)
+        this.emulator.Registers.C.set(result)
         break
       case 3:
         // set interrupt value
@@ -86,18 +90,43 @@ export default class Keyboard {
     }
   }
 
+  isKeyDown(code) {
+    if (this.downKeys[code] == true) {
+      return 1
+    } else {
+      return 0
+    }
+  }
+
   setInterruptValue(value) {
     this.interruptValue = value
   }
 
-  keyEvent(ev) {
+  keyPress(ev) {
     let code = mapKey(ev)
-    console.log(ev.keyCode, ev.charCode, code);
     if (code === undefined) {
       return
     }
 
     this.keyBuffer.push(code)
+    this.downKeys[code] = true
+
+    if (this.interruptValue > 0) {
+      this.emulator.interrupt(this.interruptValue)
+    }
+
+    // capture the key press
+    ev.preventDefault()
+    return false
+  }
+
+  keyRelease(ev) {
+    let code = mapKey(ev)
+    if (code === undefined) {
+      return
+    }
+
+    this.downKeys[code] = false
 
     if (this.interruptValue > 0) {
       this.emulator.interrupt(this.interruptValue)

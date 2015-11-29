@@ -1,0 +1,293 @@
+.define KEYBOARD_INTERRUPT 0x4801
+
+SET PC, initialisation
+
+.include inc/hardware_detection
+.include inc/display
+
+;;; Initialisation ;;;
+
+:initialisation
+  JSR hardware_detection
+
+  ; map display to memory 0x8000 - 0x8180
+  JSR display_init
+
+  ; enable keyboard interrupts
+  SET A, 3
+  SET B, KEYBOARD_INTERRUPT
+  HWI [keyboard_port]
+
+  ; reset thrusters
+  SET A, 1
+  SET B, 0x0000
+  HWI [thrusters_port]
+
+  ; setup interrupts
+  IAS interrupt_handler
+
+  ; clear screen
+  SET B, 0x0000
+  JSR render_clear_screen
+  SET Z, 0
+
+:main_loop
+  ADD Z, 1
+  IFL Z, 0x02ff
+  SET PC, main_loop
+  SET Z, 0
+
+  JSR handle_input
+  JSR update_thrusters
+  JSR render
+  SET PC, main_loop
+
+;; Handle input
+
+:handle_input
+  ; throttle
+  IFE [throttle_up_action], 1
+  JSR throttle_up
+
+  IFE [throttle_down_action], 1
+  JSR throttle_down
+
+  IFE [throttle_stop_action], 1
+  JSR throttle_stop
+
+  ; shift - increase throttle
+  IFE C, 0x90
+  SET [throttle_up_action], 1
+
+  ; ctrl - throttle down
+  IFE C, 0x91
+  SET [throttle_down_action], 1
+
+  ; backspace - throttle stop
+  IFE C, 0x10
+  SET [throttle_stop_action], 1
+
+  ; rotation
+  SET [rotate], 8
+
+  ; left arrow - rotate left
+  SET A, 2
+  SET B, 0x82
+  HWI [keyboard_port]
+
+  IFE C, 1
+  SET [rotate], 0
+
+  ; right arrow - rotate right
+  SET B, 0x83
+  HWI [keyboard_port]
+
+  IFE C, 1
+  SET [rotate], 0xF
+
+  SET PC, POP
+
+:throttle_up
+  SET A, [throttle]
+  IFL A, 15
+  ADD A, 1
+  SET [throttle], A
+  SET [throttle_up_action], 0
+  SET PC, POP
+
+:throttle_down
+  SET A, [throttle]
+  IFG A, 0
+  SUB A, 1
+  SET [throttle], A
+  SET [throttle_down_action], 0
+  SET PC, POP
+
+:throttle_stop
+  SET [throttle], 8
+  SET [throttle_stop_action], 0
+  SET PC, POP
+
+;;; Interrupt handling
+
+:interrupt_handler
+  IFE A, KEYBOARD_INTERRUPT
+  JSR read_keyboard
+
+  ; disable interrupt queueing and return
+  RFI 0
+
+:read_keyboard
+  SET PUSH, C
+
+  ; read key code read into C
+  SET A, 1
+  HWI [keyboard_port]
+
+  ; shift - increase throttle
+  IFE C, 0x90
+  SET [throttle_up_action], 1
+
+  ; ctrl - throttle down
+  IFE C, 0x91
+  SET [throttle_down_action], 1
+
+  ; backspace - throttle stop
+  IFE C, 0x10
+  SET [throttle_stop_action], 1
+
+  SET C,  POP
+  SET PC, POP
+
+;;; Thruster control
+
+:update_thrusters
+  SET PUSH, C
+
+  SET B, 0x0000
+
+  ; forward / reverse
+  SET A, [throttle]
+  IFG A, 8
+  SET B, 0xf000
+  IFL A, 8
+  SET B, 0x0f00
+
+  ; left / right
+  SET A, [rotate]
+  IFG A, 8
+  SET C, 0x0f
+  IFL A, 8
+  SET C, 0xf0
+  XOR B, C
+
+  ; fire
+  SET A, 1
+  HWI [thrusters_port]
+
+  ; done
+  SET C, POP
+  SET PC, POP
+
+;;; Render interface
+
+:render
+  IAQ 1
+
+  ; throttle display
+  JSR render_throttle
+
+  ; rotation control
+  JSR render_rotation_control
+
+  ; done
+  IAQ 0
+  SET PC, POP
+
+:render_throttle
+  ; Line 2 - 4 - Forward Indicator
+  ; Line 5 - 6 - Middle
+  ; Line 7 - 9 - Reverse Indicator
+  SET B, 0xF000
+
+  ; render bar
+  SET I, 0
+  SET J, [throttle]
+  SET Z, [throttle]
+  DVI J, 2
+  SET Y, 9
+
+:render_throttle_loop
+  SET C, 0x20 ; space
+
+  IFE Y, 5
+  SET C, 0x3D ; =
+  IFE Y, 6
+  SET C, 0x3D ; =
+
+  ; forward
+  IFG Z, 8
+  IFL Y, 7
+  IFL I, J
+  SET C, 0x2B ; +
+
+  IFE Z, 0xF
+  IFE Y, 2
+  SET C, 0x2B ; +
+
+  ; backward
+  IFL Z, 8
+  IFG Y, 4
+  IFG I, J
+  SET C, 0x2D ; -
+
+  IFE Z, 0x0
+  IFE Y, 9
+  SET C, 0x2D ; -
+
+  ; render
+  SET X, 15
+  JSR render_char_xy
+  SET X, 16
+  JSR render_char_xy
+
+  ; increment
+  SUB Y, 1
+  ADD I, 1
+  IFG Y, 1
+  SET PC, render_throttle_loop
+
+  ; done
+  SET PC, POP
+
+:render_rotation_control
+  SET Y, 2
+
+  ; left
+  SET B, 0xF000
+  IFL [rotate], 8
+  SET B, 0x0F00
+
+  SET C, 0x4C ; L
+  SET X, 7
+  JSR render_char_xy
+
+  SET C, 0x20 ; space
+  SET X, 6
+  JSR render_char_xy
+  SET X, 8
+  JSR render_char_xy
+
+
+  ; right
+  SET B, 0xF000
+  IFG [rotate], 8
+  SET B, 0x0F00
+
+  SET C, 0x52 ; R
+  SET X, 24
+  JSR render_char_xy
+
+  SET C, 0x20 ; space
+  SET X, 23
+  JSR render_char_xy
+  SET X, 25
+  JSR render_char_xy
+
+  ; done
+  SET PC, POP
+
+:throttle_down_action
+  DAT 0
+
+:throttle_up_action
+  DAT 0
+
+:throttle_stop_action
+  DAT 0
+
+:throttle
+  DAT 8
+
+:rotate
+  DAT 8
