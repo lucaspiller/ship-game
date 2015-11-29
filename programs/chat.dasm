@@ -42,6 +42,7 @@
 ; 0x01 - Emergency message
 ; 0x02 - Distress message
 ; 0x03 - Public chat message
+; 0x10 - Service advertise
 ;
 ; Text encoding
 ; -------------
@@ -81,6 +82,40 @@
 ; Example:
 ;
 ; "MAYDAY. ABANDONING SHIP. REACTOR EXPLOSION IMMINENT. KEEP CLEAR."
+;
+; Service Advertise
+; -----------------
+;
+; Allows stationary objects (stations, probes, etc) to advertise public services
+; they offer. The message consists of multiple words (one per service).
+;
+; The first 8 bits are used to denote the type of service:
+;
+; 0x01 - Terminal services
+; 0x10 - Job board
+; 0x20 - Marketplace
+; 0x21 - Storage
+; 0x30 - Refueling
+; 0x31 - Repair
+; 0x32 - Shipyard
+; 0x40 - Ore processing
+; 0x50 - Manufacturing
+;
+; The second 8 bits can be used to describe any optional data for the service, or
+; should be 0xFF if no optional data is provided.
+;
+; Currently only service type 0x01 (terminal services) consists of data, which
+; describes the channel the service operates on. The service follows the DTerm
+; protocol.
+;
+; This message type should be repeated no more than once every 15 seconds.
+;
+; Example:
+;
+; 0x0120 0x20FF 0x21FF 0x30FF
+;
+; The station offers terminal services (on channel 32), a marketplace, storage
+; and refueling services.
 ;
 ; Chat Message
 ; ------------
@@ -441,6 +476,10 @@ SET PC, initialisation
   IFE C, 0x03
   JSR decode_chat_message
 
+  ; ServiceAdvertise
+  IFE C, 0x10
+  JSR decode_service_advertise
+
   ; return and decode the next packet
   SET J, POP
   SET PC, POP
@@ -553,6 +592,10 @@ SET PC, initialisation
   ; return
   SET C, POP
   SET B, POP
+  SET PC, POP
+
+:decode_service_advertise
+  ; TODO
   SET PC, POP
 
 :line
